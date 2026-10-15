@@ -819,6 +819,7 @@ def create_campaign_task(
     return new_task
 
 @app.put("/api/boards/tasks/{task_id}", response_model=CampaignTaskResponse)
+@app.put("/api/board/tasks/{task_id}", response_model=CampaignTaskResponse)
 def update_campaign_task(
     task_id: uuid.UUID,
     task_in: CampaignTaskUpdate,
@@ -840,6 +841,7 @@ def update_campaign_task(
     return task
 
 @app.delete("/api/boards/tasks/{task_id}")
+@app.delete("/api/board/tasks/{task_id}")
 def delete_campaign_task(
     task_id: uuid.UUID,
     current_user: User = Depends(get_current_user),

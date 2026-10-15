@@ -776,7 +776,7 @@ export const apiService = {
       if (title !== undefined) payload.title = title;
       if (cells !== undefined) payload.cells_json = JSON.stringify(cells);
       
-      await fetch(`/api/board/tasks/${id}`, {
+      await fetch(`/api/boards/tasks/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify(payload),
@@ -788,7 +788,7 @@ export const apiService = {
 
   async deleteCampaignTask(id: string): Promise<void> {
     try {
-      await fetch(`/api/board/tasks/${id}`, {
+      await fetch(`/api/boards/tasks/${id}`, {
         method: 'DELETE',
         headers: getAuthHeader(),
       });
