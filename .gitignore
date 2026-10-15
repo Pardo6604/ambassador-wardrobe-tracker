@@ -1,0 +1,48 @@
+# Environment variables & secrets (NEVER commit these)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Neon credentials & config
+.neon
+
+# Python virtual environment & cache
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+closet_pr.db
+closet.db
+
+# Node dependencies & builds
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+
+# Agent & CLI skills cache
+.agents/
+
+# Logs & OS artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# IDE settings & agent internals
+.idea/
+.vscode/
+.antigravity/
