@@ -21,29 +21,29 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
 
     try {
       if (isRegistering) {
-        const result = await apiService.register(email, password, name);
-        if (result === true) {
+        const regRes = await apiService.register(email, password, name);
+        if (regRes.success) {
           // auto login after register
-          const loginSuccess = await apiService.login(email, password);
-          if (loginSuccess) {
+          const loginRes = await apiService.login(email, password);
+          if (loginRes.success) {
             onSignIn(email);
           } else {
-            setError('Registration succeeded, but login failed. Please try logging in.');
+            setError(loginRes.error || 'Registration succeeded, but login failed. Please try logging in.');
             setIsRegistering(false);
           }
         } else {
-          setError(typeof result === 'string' ? result : 'Registration failed. Email might be in use.');
+          setError(regRes.error || 'Registration failed.');
         }
       } else {
-        const success = await apiService.login(email, password);
-        if (success) {
+        const loginRes = await apiService.login(email, password);
+        if (loginRes.success) {
           onSignIn(email);
         } else {
-          setError('Invalid email or password.');
+          setError(loginRes.error || 'Invalid email or password.');
         }
       }
-    } catch (err) {
-      setError('A network error occurred.');
+    } catch (err: any) {
+      setError(err?.message || 'A network error occurred.');
     } finally {
       setLoading(false);
     }

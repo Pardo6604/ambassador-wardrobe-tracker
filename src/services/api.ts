@@ -533,22 +533,28 @@ export const apiService = {
   },
 
 
-  async register(email: string, password: string, name: string): Promise<boolean | string> {
+  async register(email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> {
     try {
       const res = await fetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name })
       });
-      if (res.ok) return true;
-      const err = await res.json();
-      return err?.detail?.[0]?.msg || err?.detail || 'Registration failed.';
-    } catch {
-      return false;
+      if (res.ok) return { success: true };
+      let errMsg = 'Registration failed.';
+      try {
+        const err = await res.json();
+        errMsg = err?.detail?.[0]?.msg || err?.detail || errMsg;
+      } catch {
+        errMsg = `Server error (${res.status}: ${res.statusText || 'Endpoint unavailable'})`;
+      }
+      return { success: false, error: errMsg };
+    } catch (e: any) {
+      return { success: false, error: `Connection failed: ${e?.message || 'Cannot reach backend server. Make sure it is running.'}` };
     }
   },
 
-  async login(email: string, password?: string): Promise<boolean> {
+  async login(email: string, password?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const res = await fetch('/api/user/login', {
         method: 'POST',
@@ -567,15 +573,18 @@ export const apiService = {
              localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
           }
         }
-        return true;
+        return { success: true };
       }
-      return false;
-    } catch {
-      // Mock login for offline dev if needed
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('closet_pr_auth_session', 'logged_in');
+      let errMsg = 'Invalid email or password.';
+      try {
+        const err = await res.json();
+        errMsg = err?.detail?.[0]?.msg || err?.detail || errMsg;
+      } catch {
+        errMsg = `Server error (${res.status}: ${res.statusText || 'Endpoint unavailable'})`;
       }
-      return true;
+      return { success: false, error: errMsg };
+    } catch (e: any) {
+      return { success: false, error: `Connection failed: ${e?.message || 'Cannot reach backend server.'}` };
     }
   },
 

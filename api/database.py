@@ -10,7 +10,7 @@ load_dotenv()
 DATABASE_URL = (
     os.getenv("POSTGRES_URL")
     or os.getenv("DATABASE_URL")
-    or "sqlite:///./closet_pr.db"
+    or ("sqlite:////tmp/closet_pr.db" if os.getenv("VERCEL") else "sqlite:///./closet_pr.db")
 )
 
 # Fix for Vercel/Heroku postgres:// vs postgresql:// SQLAlchemy standard
