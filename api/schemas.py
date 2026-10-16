@@ -1,7 +1,13 @@
 import uuid
 from datetime import datetime
 from typing import Optional, Literal, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
+
+try:
+    import email_validator
+    from pydantic import EmailStr
+except ImportError:
+    EmailStr = str  # Fallback to standard string if email-validator is not installed
 
 CategoryLiteral = Literal["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"]
 StatusLiteral = Literal["Unworn", "Worn", "Posted", "Needs Returning"]
