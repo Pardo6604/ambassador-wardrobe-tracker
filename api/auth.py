@@ -6,8 +6,17 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from .database import get_db
-from .models import User
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+try:
+    from .database import get_db
+    from .models import User
+except (ImportError, ValueError):
+    from database import get_db
+    from models import User
 
 # JWT configuration
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "super-secret-key-change-in-production")

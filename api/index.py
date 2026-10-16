@@ -7,38 +7,91 @@ from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from .database import engine, get_db, Base
-from .models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+try:
+    from .database import engine, get_db, Base
+    from .models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
+    from .schemas import (
+        TryOnRequest,
+        UserResponse,
+        UserTryOnUpdate,
+        ClothingItemCreate,
+        ClothingItemUpdate,
+        ClothingItemResponse,
+        OutfitCreate,
+        OutfitUpdate,
+        OutfitResponse,
+        CategoryLiteral,
+        StatusLiteral,
+        UserCreate,
+        UserLogin,
+        Token,
+        UserProfileUpdate,
+        UserPasswordChange,
+        TryonAvatarCreate,
+        TryonAvatarResponse,
+        CampaignColumnUpdate,
+        CampaignTaskCreate,
+        CampaignTaskUpdate,
+        CampaignTaskResponse,
+        CampaignBoardCreate,
+        CampaignBoardUpdate,
+        CampaignBoardResponse,
+    )
+    from .auth import (
+        get_password_hash,
+        verify_password,
+        create_access_token,
+        get_current_user,
+        ACCESS_TOKEN_EXPIRE_MINUTES
+    )
+except (ImportError, ValueError):
+    from database import engine, get_db, Base
+    from models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
+    from schemas import (
+        TryOnRequest,
+        UserResponse,
+        UserTryOnUpdate,
+        ClothingItemCreate,
+        ClothingItemUpdate,
+        ClothingItemResponse,
+        OutfitCreate,
+        OutfitUpdate,
+        OutfitResponse,
+        CategoryLiteral,
+        StatusLiteral,
+        UserCreate,
+        UserLogin,
+        Token,
+        UserProfileUpdate,
+        UserPasswordChange,
+        TryonAvatarCreate,
+        TryonAvatarResponse,
+        CampaignColumnUpdate,
+        CampaignTaskCreate,
+        CampaignTaskUpdate,
+        CampaignTaskResponse,
+        CampaignBoardCreate,
+        CampaignBoardUpdate,
+        CampaignBoardResponse,
+    )
+    from auth import (
+        get_password_hash,
+        verify_password,
+        create_access_token,
+        get_current_user,
+        ACCESS_TOKEN_EXPIRE_MINUTES
+    )
 import tempfile
 import base64
-import os
 from gradio_client import Client, handle_file
 from dotenv import load_dotenv
 load_dotenv()
-from .schemas import TryOnRequest
-
-from .schemas import UserResponse
-from .schemas import (
-    UserTryOnUpdate,
-    ClothingItemCreate,
-    ClothingItemUpdate,
-    ClothingItemResponse,
-    OutfitCreate,
-    OutfitUpdate,
-    OutfitResponse,
-    CategoryLiteral,
-    StatusLiteral,
-    UserCreate,
-    UserLogin,
-    Token
-)
-from .auth import (
-    get_password_hash,
-    verify_password,
-    create_access_token,
-    get_current_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES
-)
 from datetime import timedelta
 
 # Create tables on startup if they don't exist yet
@@ -180,7 +233,6 @@ def delete_item(
 
 
 
-from .schemas import UserTryOnUpdate, TryonAvatarCreate, TryonAvatarResponse
 
 @app.put("/api/user/tryon-image", response_model=UserResponse)
 def update_tryon_image(update_data: UserTryOnUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -613,7 +665,6 @@ def delete_outfit(
 # USER ACCOUNT MANAGEMENT ENDPOINTS
 # ==========================================
 
-from .schemas import UserProfileUpdate, UserPasswordChange, UserResponse
 
 
 @app.post("/api/user/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -714,8 +765,6 @@ def logout_user():
 # ==========================================
 # CAMPAIGN BOARD ENDPOINTS
 # ==========================================
-from .models import CampaignTask, CampaignBoard
-from .schemas import CampaignColumnUpdate, CampaignTaskCreate, CampaignTaskUpdate, CampaignTaskResponse, CampaignBoardCreate, CampaignBoardUpdate, CampaignBoardResponse
 
 @app.get("/api/boards", response_model=List[CampaignBoardResponse])
 def get_campaign_boards(
