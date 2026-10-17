@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Category, ItemStatus } from '../types';
-import { X, Upload, Image as ImageIcon, Check, Sparkles } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Check, Sparkles, Loader2 } from 'lucide-react';
+import { compressImage } from '../utils/imageCompressor';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [notes, setNotes] = useState('');
   const [returnDeadline, setReturnDeadline] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,20 +53,29 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Handle local file selection or drag-drop
-  const handleFileProcess = (file: File) => {
+  // Handle local file selection or drag-drop with Canvas/WebP compression
+  const handleFileProcess = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setError('Please upload a valid image file (PNG, JPG, WEBP).');
       return;
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (typeof e.target?.result === 'string') {
-        setImageUrl(e.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setIsCompressing(true);
+    try {
+      const compressedDataUrl = await compressImage(file, 1024, 0.85);
+      setImageUrl(compressedDataUrl);
+    } catch (err) {
+      console.warn('Canvas compression failed, falling back to FileReader', err);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (typeof e.target?.result === 'string') {
+          setImageUrl(e.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -204,7 +215,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={handleFileInputChange}
               />
 
-              {imageUrl ? (
+              {isCompressing ? (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+                  <span className="text-xs font-semibold text-neutral-800">
+                    Optimizing image for AI (1024×1024 WebP)...
+                  </span>
+                </div>
+              ) : imageUrl ? (
                 <div className="relative group w-full flex items-center justify-center">
                   <img
                     src={imageUrl}
@@ -227,7 +245,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                       Tap or drag & drop to upload photo
                     </span>
                     <p className="text-[11px] text-neutral-400 mt-0.5">
-                      Supports JPG, PNG, WEBP from your phone camera or gallery
+                      Auto-compressed to 1024×1024 WebP for fast AI generation
                     </p>
                   </div>
                 </div>

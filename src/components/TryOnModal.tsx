@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { X, Wand2, Upload, Shirt } from 'lucide-react';
 import { apiService } from '../services/api';
 import { ClothingItem } from '../types';
+import { compressImage } from '../utils/imageCompressor';
 
 interface TryOnModalProps {
   clothingItems: ClothingItem[];
@@ -25,18 +26,6 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({ clothingItems, onClose, 
   const [selectedGarmentIds, setSelectedGarmentIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPersonImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleGenerate = async () => {
     if (!personImage || selectedGarmentIds.length === 0) return;
@@ -65,7 +54,11 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({ clothingItems, onClose, 
             description = 'dresses';
         }
         try {
-            const result = await apiService.generateTryOn(currentImage, garment.image_url, description);
+            const [optimizedPerson, optimizedGarment] = await Promise.all([
+                compressImage(currentImage, 1024, 0.85),
+                compressImage(garment.image_url, 1024, 0.85)
+            ]);
+            const result = await apiService.generateTryOn(optimizedPerson, optimizedGarment, description);
             if (result) {
                 currentImage = result;
             }

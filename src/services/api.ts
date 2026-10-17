@@ -635,25 +635,80 @@ export const apiService = {
 
   async generateTryOn(personImageBase64: string, garmentImageBase64: string, garmentDescription: string = "A clothing item"): Promise<string | null> {
     try {
-      const res = await fetch('/api/outfits/generate-tryon', {
+      // 1. Submit async try-on job to avoid Vercel 504 serverless gateway timeout
+      const submitRes = await fetch('/api/outfits/tryon-job', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
         body: JSON.stringify({
           person_image_base64: personImageBase64,
           garment_image_base64: garmentImageBase64,
-          garment_description: garmentDescription
-        })
+          garment_description: garmentDescription,
+        }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        return data.result_image_base64;
+
+      if (!submitRes.ok) {
+        // Fallback to legacy sync endpoint if tryon-job endpoint failed
+        console.warn('Async tryon-job failed, trying sync fallback endpoint...');
+        return await this.generateTryOnSync(personImageBase64, garmentImageBase64, garmentDescription);
       }
-      const errorData = await res.json();
-      throw new Error(errorData.detail || "Failed to generate image");
-    } catch (err) {
-      console.error(err);
-      return null;
+
+      const jobData = await submitRes.json();
+
+      // If job completed immediately (e.g., sync fallback or cache)
+      if (jobData.status === 'completed' && jobData.result_image_base64) {
+        return jobData.result_image_base64;
+      }
+
+      const { job_id, provider } = jobData;
+      if (!job_id) {
+        throw new Error('No job_id returned by try-on server');
+      }
+
+      // 2. Poll job status every 2s (up to 45 attempts = 90s total)
+      const maxAttempts = 45;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(r => setTimeout(r, 2000));
+
+        const providerQuery = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+        const statusRes = await fetch(`/api/outfits/tryon-job/${encodeURIComponent(job_id)}${providerQuery}`, {
+          headers: getAuthHeader(),
+        });
+
+        if (!statusRes.ok) {
+          continue;
+        }
+
+        const pollResult = await statusRes.json();
+        if (pollResult.status === 'completed' && pollResult.result_image_base64) {
+          return pollResult.result_image_base64;
+        } else if (pollResult.status === 'failed') {
+          throw new Error(pollResult.error || 'Virtual try-on job failed on remote AI provider.');
+        }
+      }
+
+      throw new Error('Virtual try-on timed out after 90 seconds. Please try again.');
+    } catch (err: any) {
+      console.error('generateTryOn error:', err);
+      throw err;
     }
+  },
+
+  async generateTryOnSync(personImageBase64: string, garmentImageBase64: string, garmentDescription: string = "A clothing item"): Promise<string | null> {
+    const res = await fetch('/api/outfits/generate-tryon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({
+        person_image_base64: personImageBase64,
+        garment_image_base64: garmentImageBase64,
+        garment_description: garmentDescription,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.result_image_base64;
+    }
+    const errorData = await res.json();
+    throw new Error(errorData.detail || 'Failed to generate image');
   },
 
   async logout(): Promise<void> {

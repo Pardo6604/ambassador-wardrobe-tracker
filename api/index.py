@@ -18,6 +18,7 @@ try:
     from .models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
     from .schemas import (
         TryOnRequest,
+        TryOnJobResponse,
         UserResponse,
         UserTryOnUpdate,
         ClothingItemCreate,
@@ -55,6 +56,7 @@ except (ImportError, ValueError):
     from models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
     from schemas import (
         TryOnRequest,
+        TryOnJobResponse,
         UserResponse,
         UserTryOnUpdate,
         ClothingItemCreate,
@@ -469,6 +471,172 @@ def auto_suggest_outfit(avatar_id: Optional[uuid.UUID] = None, current_user: Use
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to auto-suggest outfit: {str(e)}")
+
+@app.post("/api/outfits/tryon-job", response_model=TryOnJobResponse)
+def create_tryon_job(request: TryOnRequest, current_user: User = Depends(get_current_user)):
+    try:
+        fal_key = os.environ.get("FAL_KEY")
+        pixel_api_key = os.environ.get("PIXEL_API_KEY") or os.environ.get("PIXELAPI_KEY") or os.environ.get("PIXELAPI")
+        hf_token = os.environ.get("HF_TOKEN")
+
+        if not (fal_key or pixel_api_key or hf_token):
+            raise HTTPException(status_code=500, detail="No VTON API key configured (FAL_KEY, PIXELAPI, or HF_TOKEN)")
+
+        if request.garment_description == "lower_body":
+            desc = "lower_body"
+            px_cat = "lowerbody"
+            hf_cat = "Lower-body"
+        elif request.garment_description == "dresses":
+            desc = "dresses"
+            px_cat = "dress"
+            hf_cat = "Dress"
+        else:
+            desc = "upper_body"
+            px_cat = "upperbody"
+            hf_cat = "Upper-body"
+
+        if fal_key:
+            headers = {"Authorization": f"Key {fal_key}", "Content-Type": "application/json"}
+            person_data_url = request.person_image_base64 if request.person_image_base64.startswith("data:image") else f"data:image/png;base64,{request.person_image_base64}"
+            garment_data_url = request.garment_image_base64 if request.garment_image_base64.startswith("data:image") else f"data:image/png;base64,{request.garment_image_base64}"
+            payload = {
+                "human_image_url": person_data_url,
+                "garment_image_url": garment_data_url,
+                "description": desc,
+                "category": desc
+            }
+            # Enqueue task in Fal.ai queue to decouple from Vercel timeout limits
+            res = requests.post("https://queue.fal.run/fal-ai/idm-vton", json=payload, headers=headers)
+            if not res.ok:
+                raise HTTPException(status_code=500, detail=f"Fal.ai queue error: {res.text}")
+            data = res.json()
+            request_id = data.get("request_id")
+            if not request_id:
+                raise HTTPException(status_code=500, detail="Fal.ai queue did not return a request_id")
+            return TryOnJobResponse(job_id=request_id, provider="fal", status="processing")
+
+        elif pixel_api_key:
+            person_raw = request.person_image_base64.split(",")[1] if "," in request.person_image_base64 else request.person_image_base64
+            garment_raw = request.garment_image_base64.split(",")[1] if "," in request.garment_image_base64 else request.garment_image_base64
+            headers = {"Authorization": f"Bearer {pixel_api_key}", "Content-Type": "application/json"}
+            payload = {"person_image": person_raw, "garment_image": garment_raw, "category": px_cat}
+            res = requests.post("https://api.pixelapi.dev/v1/virtual-tryon", json=payload, headers=headers)
+            if not res.ok:
+                raise HTTPException(status_code=500, detail=f"PixelAPI submit error: {res.text}")
+            job_id = res.json().get("job_id")
+            if not job_id:
+                raise HTTPException(status_code=500, detail="PixelAPI did not return a job_id")
+            return TryOnJobResponse(job_id=job_id, provider="pixelapi", status="processing")
+
+        elif hf_token:
+            # Fallback for Hugging Face Gradio Client
+            client = Client("levihsu/OOTDiffusion", token=hf_token)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as p_file:
+                person_data = base64.b64decode(request.person_image_base64.split(",")[1] if "," in request.person_image_base64 else request.person_image_base64)
+                p_file.write(person_data)
+                person_path = p_file.name
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as g_file:
+                garment_data = base64.b64decode(request.garment_image_base64.split(",")[1] if "," in request.garment_image_base64 else request.garment_image_base64)
+                g_file.write(garment_data)
+                garment_path = g_file.name
+
+            try:
+                result = client.predict(
+                    vton_img=handle_file(person_path),
+                    garm_img=handle_file(garment_path),
+                    category=hf_cat,
+                    n_samples=1,
+                    n_steps=20,
+                    image_scale=2.0,
+                    seed=random.randint(0, 100000),
+                    api_name="/process_dc"
+                )
+                output_path = result[0]['image']
+            except Exception as e:
+                if "ZeroGPU" in str(e):
+                    raise HTTPException(status_code=429, detail="Hugging Face Free GPU quota exceeded. Please try again later.")
+                raise HTTPException(status_code=500, detail=f"VTON Model Error: {str(e)}")
+            with open(output_path, "rb") as f:
+                output_b64 = base64.b64encode(f.read()).decode("utf-8")
+            os.remove(person_path)
+            os.remove(garment_path)
+            return TryOnJobResponse(
+                job_id="hf-complete",
+                provider="huggingface",
+                status="completed",
+                result_image_base64=f"data:image/png;base64,{output_b64}"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/outfits/tryon-job/{job_id}", response_model=TryOnJobResponse)
+def get_tryon_job_status(job_id: str, provider: Optional[str] = Query(None), current_user: User = Depends(get_current_user)):
+    try:
+        fal_key = os.environ.get("FAL_KEY")
+        pixel_api_key = os.environ.get("PIXEL_API_KEY") or os.environ.get("PIXELAPI_KEY") or os.environ.get("PIXELAPI")
+
+        # Fal.ai provider handling
+        if provider == "fal" or (fal_key and provider != "pixelapi"):
+            headers = {"Authorization": f"Key {fal_key}"}
+            status_res = requests.get(f"https://queue.fal.run/fal-ai/idm-vton/requests/{job_id}/status", headers=headers)
+            if not status_res.ok:
+                raise HTTPException(status_code=500, detail=f"Fal.ai status check failed: {status_res.text}")
+            status_data = status_res.json()
+            fal_status = status_data.get("status")
+
+            if fal_status == "COMPLETED":
+                res = requests.get(f"https://queue.fal.run/fal-ai/idm-vton/requests/{job_id}", headers=headers)
+                if not res.ok:
+                    raise HTTPException(status_code=500, detail=f"Failed to fetch completed Fal result: {res.text}")
+                output_url = res.json().get("image", {}).get("url")
+                img_data = requests.get(output_url).content
+                output_b64 = base64.b64encode(img_data).decode("utf-8")
+                return TryOnJobResponse(
+                    job_id=job_id,
+                    provider="fal",
+                    status="completed",
+                    result_image_base64=f"data:image/png;base64,{output_b64}"
+                )
+            elif fal_status in ("IN_QUEUE", "IN_PROGRESS"):
+                return TryOnJobResponse(job_id=job_id, provider="fal", status="processing")
+            else:
+                return TryOnJobResponse(job_id=job_id, provider="fal", status="failed", error="Fal.ai job failed or cancelled.")
+
+        # PixelAPI provider handling
+        elif provider == "pixelapi" or pixel_api_key:
+            headers = {"Authorization": f"Bearer {pixel_api_key}"}
+            poll_res = requests.get(f"https://api.pixelapi.dev/v1/virtual-tryon/jobs/{job_id}", headers=headers)
+            if not poll_res.ok:
+                raise HTTPException(status_code=500, detail=f"PixelAPI poll error: {poll_res.text}")
+            poll_data = poll_res.json()
+            p_status = poll_data.get("status")
+
+            if p_status == "completed":
+                output_b64 = poll_data.get("result_image_b64")
+                if not output_b64 and poll_data.get("output_url"):
+                    img_data = requests.get(poll_data.get("output_url")).content
+                    output_b64 = base64.b64encode(img_data).decode("utf-8")
+                return TryOnJobResponse(
+                    job_id=job_id,
+                    provider="pixelapi",
+                    status="completed",
+                    result_image_base64=f"data:image/png;base64,{output_b64}"
+                )
+            elif p_status in ("processing", "pending"):
+                return TryOnJobResponse(job_id=job_id, provider="pixelapi", status="processing")
+            else:
+                return TryOnJobResponse(job_id=job_id, provider="pixelapi", status="failed", error="PixelAPI job failed.")
+
+        return TryOnJobResponse(job_id=job_id, status="failed", error="Unknown provider or missing credentials.")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/outfits/generate-tryon")
 def generate_tryon(request: TryOnRequest, current_user: User = Depends(get_current_user)):

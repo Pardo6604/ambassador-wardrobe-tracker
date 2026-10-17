@@ -101,6 +101,13 @@ class TryOnRequest(BaseModel):
     garment_image_base64: str
     garment_description: str = "A clothing item"
 
+class TryOnJobResponse(BaseModel):
+    job_id: Optional[str] = None
+    provider: Optional[str] = None
+    status: str
+    result_image_base64: Optional[str] = None
+    error: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
