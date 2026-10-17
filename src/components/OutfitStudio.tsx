@@ -151,11 +151,11 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
 
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
 
-  const handleAutoSuggest = async (avatarId?: string) => {
+  const handleAutoSuggest = async (avatarId?: string, prompt?: string) => {
     setIsAutoSuggesting(true);
     setIsSuggestModalOpen(false);
     try {
-      const newOutfit = await apiService.autoSuggestOutfit(avatarId);
+      const newOutfit = await apiService.autoSuggestOutfit(avatarId, prompt);
       if (newOutfit) {
         if (onOutfitGenerated) {
           onOutfitGenerated(newOutfit);

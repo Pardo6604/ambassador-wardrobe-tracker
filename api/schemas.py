@@ -17,7 +17,8 @@ class ClothingItemBase(BaseModel):
     image_url: str = Field(..., description="URL of the uploaded clothing image")
     category: str = Field(..., description="Category: Tops, Bottoms, Outerwear, Footwear, Accessories")
     brand: str = Field(..., min_length=1, max_length=100, description="Brand name of the item")
-    status: str = Field(default="Unworn", description="Status: Unworn, Worn, Posted, Needs Returning")
+    status: Optional[str] = Field(default="Unworn", description="Status: Unworn, Worn, Posted, Needs Returning")
+    description: Optional[str] = Field(default=None, description="Detailed piece description: color, material, cut, aesthetic vibe")
 
 
 class ClothingItemCreate(ClothingItemBase):
@@ -25,10 +26,11 @@ class ClothingItemCreate(ClothingItemBase):
 
 
 class ClothingItemUpdate(BaseModel):
-    status: Optional[StatusLiteral] = None
+    status: Optional[str] = None
     brand: Optional[str] = None
-    category: Optional[CategoryLiteral] = None
+    category: Optional[str] = None
     image_url: Optional[str] = None
+    description: Optional[str] = None
 
 
 class ClothingItemResponse(ClothingItemBase):

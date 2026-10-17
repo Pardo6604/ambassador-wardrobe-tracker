@@ -158,7 +158,8 @@ export const apiService = {
   async uploadItem(itemData: {
     brand: string;
     category: Category;
-    status: ItemStatus;
+    status?: ItemStatus;
+    description?: string;
     image_url: string;
     campaign_tag?: string;
     notes?: string;
@@ -168,7 +169,8 @@ export const apiService = {
       id: crypto.randomUUID ? crypto.randomUUID() : `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       brand: itemData.brand.trim(),
       category: itemData.category,
-      status: itemData.status,
+      status: itemData.status || 'Unworn',
+      description: itemData.description?.trim(),
       image_url: itemData.image_url,
       campaign_tag: itemData.campaign_tag?.trim(),
       notes: itemData.notes?.trim(),
@@ -184,6 +186,7 @@ export const apiService = {
           brand: newItem.brand,
           category: newItem.category,
           status: newItem.status,
+          description: newItem.description,
           image_url: newItem.image_url,
         }),
       });
@@ -191,6 +194,7 @@ export const apiService = {
       if (res.ok) {
         const saved = await res.json();
         newItem.id = saved.id || newItem.id;
+        newItem.description = saved.description || newItem.description;
       }
     } catch {
       // Local fallback
@@ -608,9 +612,13 @@ export const apiService = {
     }
   },
 
-  async autoSuggestOutfit(avatarId?: string): Promise<OutfitSuggestion | null> {
+  async autoSuggestOutfit(avatarId?: string, prompt?: string): Promise<OutfitSuggestion | null> {
     try {
-      const url = avatarId ? `/api/outfits/auto-suggest?avatar_id=${avatarId}` : '/api/outfits/auto-suggest';
+      const params = new URLSearchParams();
+      if (avatarId) params.set('avatar_id', avatarId);
+      if (prompt && prompt.trim()) params.set('prompt', prompt.trim());
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const url = `/api/outfits/auto-suggest${queryStr}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: getAuthHeader()

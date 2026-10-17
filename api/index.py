@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 import sys
 import os
@@ -98,6 +99,18 @@ from datetime import timedelta
 
 # Create tables on startup if they don't exist yet
 Base.metadata.create_all(bind=engine)
+try:
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("ALTER TABLE clothing_items ADD COLUMN IF NOT EXISTS description VARCHAR(2048);"))
+            conn.execute(text("ALTER TABLE clothing_items ALTER COLUMN status DROP NOT NULL;"))
+        elif engine.dialect.name == "sqlite":
+            cursor = conn.execute(text("PRAGMA table_info(clothing_items);"))
+            columns = [row[1] for row in cursor.fetchall()]
+            if "description" not in columns:
+                conn.execute(text("ALTER TABLE clothing_items ADD COLUMN description VARCHAR(2048);"))
+except Exception as migration_err:
+    print(f"Non-critical schema migration notice: {migration_err}")
 
 app = FastAPI(
     title="ClosetPR Ambassador API",
@@ -174,7 +187,8 @@ def upload_item(
         image_url=item_in.image_url,
         category=item_in.category,
         brand=item_in.brand,
-        status=item_in.status
+        status=item_in.status or "Unworn",
+        description=item_in.description
     )
     db.add(new_item)
     db.commit()
@@ -189,7 +203,7 @@ def update_item_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update clothing item fields, specifically status."""
+    """Update clothing item fields, specifically status and description."""
     item = db.query(ClothingItem).filter(ClothingItem.id == item_id, ClothingItem.user_id == current_user.id).first()
     if not item:
         raise HTTPException(
@@ -205,6 +219,8 @@ def update_item_status(
         item.category = item_update.category
     if item_update.image_url is not None:
         item.image_url = item_update.image_url
+    if item_update.description is not None:
+        item.description = item_update.description
 
     db.commit()
     db.refresh(item)
@@ -269,8 +285,186 @@ def delete_avatar(avatar_id: uuid.UUID, current_user: User = Depends(get_current
     db.commit()
     return None
 
+def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] = None):
+    """
+    Intelligent Fashion Stylist Curation Engine.
+    Leverages item descriptions (color, material, silhouette, cut, aesthetic), category, and brand
+    alongside editorial styling guidelines to assemble the optimal look for the requested occasion.
+    Prevents mismatched casual/activewear (like sweatpants and tank tops) for formal/dinner requests.
+    """
+    if not items:
+        return [], "Empty Closet", "Casual", "No items available to style."
+
+    p_raw = (prompt or "").strip()
+    p_lower = p_raw.lower()
+
+    # Determine primary style theme from prompt
+    is_formal = any(w in p_lower for w in [
+        "dinner", "fancy", "formal", "gala", "cocktail", "vip", "evening", 
+        "date", "chic", "party", "luxury", "black tie", "night out", "elegant", "upscale"
+    ])
+    is_streetwear = any(w in p_lower for w in [
+        "street", "streetwear", "urban", "hype", "cargo", "sneaker", "grunge", "edgy", "grwm"
+    ])
+    is_summer = any(w in p_lower for w in [
+        "summer", "beach", "resort", "warm", "sunny", "vacation", "pool"
+    ])
+    is_active = any(w in p_lower for w in [
+        "gym", "workout", "sport", "active", "run", "athletic", "training"
+    ])
+    is_business = any(w in p_lower for w in [
+        "business", "meeting", "office", "showroom", "work", "presentation"
+    ])
+
+    theme = "Editorial Chic"
+    if is_formal:
+        theme = "Fancy Dinner"
+    elif is_streetwear:
+        theme = "Streetwear Editorial"
+    elif is_business:
+        theme = "Showroom & Business"
+    elif is_summer:
+        theme = "Summer Resort"
+    elif is_active:
+        theme = "Active / Workout"
+    elif p_raw:
+        theme = p_raw.title()
+
+    # Editorial material & silhouette guidelines
+    formal_boost = [
+        "wool", "cashmere", "silk", "satin", "velvet", "leather", "blazer", "suit", 
+        "tailored", "trouser", "pleat", "crepe", "dress", "gown", "slip", "oxford", 
+        "loafer", "heel", "structured", "chic", "elegant", "the row", "issey miyake", 
+        "bottega", "saint laurent", "jacquemus", "chanel", "dior", "prada"
+    ]
+    formal_penalties = [
+        "sweat", "fleece", "tank top", "tank", "jogger", "gym", "running", 
+        "athletic", "shorts", "distressed", "track", "hoodie"
+    ]
+
+    streetwear_boost = [
+        "denim", "jean", "leather", "jacket", "cargo", "hoodie", "sneaker", 
+        "chunky", "bomber", "cotton", "salomon", "acne studios", "stussy", "oversized"
+    ]
+
+    active_boost = [
+        "fleece", "sweat", "jogger", "athletic", "tank", "sneaker", "running", "gym", "legging"
+    ]
+
+    def score_item(item: ClothingItem) -> float:
+        text = f"{item.brand or ''} {item.category or ''} {item.description or ''} {item.notes or ''}".lower()
+        score = 10.0
+        
+        # Prefer unworn items for brand ambassadors
+        if item.status == "Unworn":
+            score += 8.0
+
+        # Match exact words from user prompt
+        if p_lower:
+            words = [w for w in p_lower.split() if len(w) > 3]
+            for w in words:
+                if w in text:
+                    score += 25.0
+
+        # Apply theme-specific rules
+        if is_formal:
+            for b in formal_boost:
+                if b in text:
+                    score += 15.0
+            for pen in formal_penalties:
+                if pen in text:
+                    score -= 80.0  # heavily penalize sweatpants, tank tops, gym fleece for fancy dinners
+        elif is_streetwear:
+            for b in streetwear_boost:
+                if b in text:
+                    score += 15.0
+            if "tuxedo" in text or "gown" in text:
+                score -= 40.0
+        elif is_active:
+            for b in active_boost:
+                if b in text:
+                    score += 20.0
+            if "blazer" in text or "gown" in text or "suit" in text:
+                score -= 60.0
+        elif is_business:
+            if any(w in text for w in ["blazer", "tailored", "trouser", "knit", "cashmere", "pleat"]):
+                score += 20.0
+            if any(w in text for w in ["sweatpants", "tank", "distressed"]):
+                score -= 50.0
+
+        return score
+
+    # Classify closet into functional wardrobe categories
+    dresses = []
+    tops = []
+    bottoms = []
+    outerwear = []
+
+    for item in items:
+        cat_lower = (item.category or "").lower()
+        desc_lower = (item.description or "").lower()
+        combined = f"{cat_lower} {desc_lower}"
+
+        if any(w in combined for w in ["dress", "gown", "jumpsuit", "romper"]):
+            dresses.append(item)
+        elif any(w in cat_lower for w in ["bottom", "pant", "jean", "short", "skirt", "trouser", "legging"]):
+            bottoms.append(item)
+        elif any(w in cat_lower for w in ["outerwear", "coat", "jacket", "blazer", "trench"]):
+            outerwear.append(item)
+        else:
+            tops.append(item)
+
+    # Sort each category by score descending
+    dresses.sort(key=score_item, reverse=True)
+    tops.sort(key=score_item, reverse=True)
+    bottoms.sort(key=score_item, reverse=True)
+    outerwear.sort(key=score_item, reverse=True)
+
+    outfit_items = []
+
+    if bottoms and tops:
+        best_bottom = bottoms[0]
+        best_top = tops[0]
+        best_outfit = [best_bottom, best_top]
+        if outerwear and score_item(outerwear[0]) > 25:
+            best_outfit.append(outerwear[0])
+        outfit_items = best_outfit
+
+    elif dresses:
+        best_dress = dresses[0]
+        best_outfit = [best_dress]
+        if outerwear and score_item(outerwear[0]) > 25:
+            best_outfit.append(outerwear[0])
+        outfit_items = best_outfit
+
+    elif tops:
+        outfit_items = [tops[0]]
+    elif bottoms:
+        outfit_items = [bottoms[0]]
+    else:
+        outfit_items = [items[0]]
+
+    # Generate bespoke editorial title and styling notes
+    brands = list(dict.fromkeys([p.brand for p in outfit_items]))
+    brand_str = " + ".join(brands)
+    title = f"{theme}: {brand_str} Look"
+
+    piece_notes = []
+    for p in outfit_items:
+        detail = p.description or p.category
+        piece_notes.append(f"{p.brand} ({detail})")
+    
+    rationale = f"Curated for {p_raw or theme.lower()}. Styled {', '.join(piece_notes)} to ensure harmony of materials, color palette, and occasion-appropriate formality."
+    
+    return outfit_items, title, theme, rationale
+
 @app.post("/api/outfits/auto-suggest", response_model=OutfitResponse)
-def auto_suggest_outfit(avatar_id: Optional[uuid.UUID] = None, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def auto_suggest_outfit(
+    avatar_id: Optional[uuid.UUID] = None,
+    prompt: Optional[str] = Query(None, description="Styling occasion or aesthetic prompt"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     person_base64 = current_user.tryon_base_image
     
     if avatar_id:
@@ -293,28 +487,8 @@ def auto_suggest_outfit(avatar_id: Optional[uuid.UUID] = None, current_user: Use
     if not items:
         raise HTTPException(status_code=400, detail="No clothes found in your closet.")
 
-    # Try to build a full outfit: Top + Bottom
-    tops = [i for i in items if not any(w in i.category.lower() for w in ["bottom", "pant", "jean", "short", "skirt", "trouser", "legging", "shoe", "foot", "sneaker", "boot"])]
-    bottoms = [i for i in items if any(w in i.category.lower() for w in ["bottom", "pant", "jean", "short", "skirt", "trouser", "legging"])]
-    
-    outfit_items = []
-    
-    # Add bottoms FIRST, then tops, so tops drape over bottoms during VTON
-    if bottoms:
-        unworn_bottoms = [i for i in bottoms if i.status == "Unworn"]
-        outfit_items.append(random.choice(unworn_bottoms) if unworn_bottoms else random.choice(bottoms))
-
-    if tops:
-        unworn_tops = [i for i in tops if i.status == "Unworn"]
-        outfit_items.append(random.choice(unworn_tops) if unworn_tops else random.choice(tops))
-        
-    # Filter out bottoms if top is a dress
-    if any(w in i.category.lower() for i in outfit_items for w in ["dress", "gown", "jumpsuit", "romper"]):
-        outfit_items = [i for i in outfit_items if not any(w in i.category.lower() for w in ["bottom", "pant", "jean", "short", "skirt", "trouser", "legging"])]
-
-    if not outfit_items:
-        # Fallback to any item if no tops or bottoms
-        outfit_items.append(random.choice(items))
+    # Run the intelligent Fashion Stylist Curation Engine with piece descriptions!
+    outfit_items, title, occasion, notes = curate_outfit_from_closet(items, prompt)
 
     try:
         fal_key = os.environ.get("FAL_KEY")
@@ -375,15 +549,15 @@ def auto_suggest_outfit(avatar_id: Optional[uuid.UUID] = None, current_user: Use
                     if not poll_res.ok:
                         raise HTTPException(status_code=500, detail=f"PixelAPI poll error: {poll_res.text}")
                     poll_data = poll_res.json()
-                    status = poll_data.get("status")
-                    if status == "completed":
+                    status_str = poll_data.get("status")
+                    if status_str == "completed":
                         output_b64 = poll_data.get("result_image_b64")
                         if not output_b64 and poll_data.get("output_url"):
                             img_data = requests.get(poll_data.get("output_url")).content
                             output_b64 = base64.b64encode(img_data).decode("utf-8")
                         current_person_b64 = f"data:image/png;base64,{output_b64}"
                         break
-                    elif status == "failed":
+                    elif status_str == "failed":
                         raise HTTPException(status_code=500, detail="PixelAPI job failed.")
                 else:
                     raise HTTPException(status_code=504, detail="PixelAPI polling timed out")
@@ -425,46 +599,22 @@ def auto_suggest_outfit(avatar_id: Optional[uuid.UUID] = None, current_user: Use
                 current_person_b64 = f"data:image/png;base64,{output_b64}"
 
         final_image_url = current_person_b64
-        
-        # Determine title and styling notes based on brands
-        brands = [p.brand for p in outfit_items]
-        brand_str = " + ".join(list(set(brands)))
-        title = f"AI Suggestion: {brand_str} Look"
-        notes = f"Auto-generated layered look featuring {brand_str}."
-        
-        # Determine occasion based on the items
-        occasion = "Casual"
-        if any("suit" in p.category.lower() or "gown" in p.category.lower() for p in outfit_items):
-            occasion = "Formal Event"
-        elif any("athletic" in p.category.lower() or "sport" in p.category.lower() for p in outfit_items):
-            occasion = "Workout"
-        
+
         new_outfit = Outfit(
             id=uuid.uuid4(),
             user_id=current_user.id,
             title=title,
             occasion=occasion,
             model_image_url=final_image_url,
+            item_ids=",".join(str(p.id) for p in outfit_items),
             styling_notes=notes
         )
         db.add(new_outfit)
+        for piece in outfit_items:
+            piece.status = "Worn"
         db.commit()
         db.refresh(new_outfit)
 
-        # Record associations
-        for piece in outfit_items:
-            db.execute(
-                Outfit.__table__.metadata.tables['outfit_items'].insert().values(
-                    outfit_id=new_outfit.id,
-                    clothing_item_id=piece.id
-                )
-            )
-            # Mark worn
-            piece.status = "Worn"
-            piece.last_worn = datetime.utcnow()
-        
-        db.commit()
-        
         return new_outfit
 
     except HTTPException:

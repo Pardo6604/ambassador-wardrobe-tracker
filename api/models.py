@@ -121,7 +121,8 @@ class ClothingItem(Base):
     image_url = Column(String(1024), nullable=False)
     category = Column(String(50), nullable=False, index=True)  # Tops, Bottoms, Outerwear, Footwear, Accessories
     brand = Column(String(100), nullable=False, index=True)
-    status = Column(String(50), nullable=False, default="Unworn", index=True)  # Unworn, Worn, Posted, Needs Returning
+    status = Column(String(50), nullable=True, default="Unworn", index=True)  # Unworn, Worn, Posted, Needs Returning
+    description = Column(String(2048), nullable=True)  # Color, material, aesthetic, styling details
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

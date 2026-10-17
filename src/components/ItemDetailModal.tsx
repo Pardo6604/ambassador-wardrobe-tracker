@@ -146,6 +146,19 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </div>
               )}
 
+              {/* Piece Description & AI Styling Profile */}
+              {item.description && (
+                <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg">
+                  <span className="text-[11px] font-semibold text-indigo-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    Piece Description & Styling Profile
+                  </span>
+                  <p className="text-xs text-indigo-950/80 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              )}
+
               {/* Notes */}
               {item.notes && (
                 <div className="p-3 bg-[#FAF9F6] border border-neutral-200/80 rounded-lg">

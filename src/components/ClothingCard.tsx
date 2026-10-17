@@ -132,11 +132,15 @@ export const ClothingCard: React.FC<ClothingCardProps> = ({
             {item.brand}
           </h3>
 
-          {item.notes && (
+          {item.description ? (
+            <p className="mt-1 text-xs text-neutral-600 line-clamp-1">
+              {item.description}
+            </p>
+          ) : item.notes ? (
             <p className="mt-1 text-xs text-neutral-500 line-clamp-1 italic">
               "{item.notes}"
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Card Footer with tap prompt */}

@@ -8,7 +8,8 @@ export interface ClothingItem {
   image_url: string;
   category: Category;
   brand: string;
-  status: ItemStatus;
+  status?: ItemStatus;
+  description?: string;
   created_at: string;
   campaign_tag?: string;
   notes?: string;

@@ -9,7 +9,8 @@ interface UploadModalProps {
   onUpload: (data: {
     brand: string;
     category: Category;
-    status: ItemStatus;
+    status?: ItemStatus;
+    description?: string;
     image_url: string;
     campaign_tag?: string;
     notes?: string;
@@ -20,12 +21,42 @@ interface UploadModalProps {
 }
 
 // Ready-to-use sample curated wardrobe imagery in case user wants one-click demo items
-const SAMPLE_PRESETS: { label: string; category: Category; brand: string; color: string }[] = [
-  { label: 'Leather Jacket', category: 'Outerwear', brand: 'Acne Studios', color: '#3A2E2B' },
-  { label: 'Pleated Pants', category: 'Bottoms', brand: 'Issey Miyake', color: '#273238' },
-  { label: 'Chunky Sneaker', category: 'Footwear', brand: 'Salomon', color: '#324238' },
-  { label: 'Cashmere Knit', category: 'Tops', brand: 'The Row', color: '#D5C4A1' },
-  { label: 'Shoulder Bag', category: 'Accessories', brand: 'Bottega Veneta', color: '#1E2522' },
+const SAMPLE_PRESETS: { label: string; category: Category; brand: string; color: string; description: string }[] = [
+  {
+    label: 'Leather Jacket',
+    category: 'Outerwear',
+    brand: 'Acne Studios',
+    color: '#3A2E2B',
+    description: 'Oversized dark brown distressed calfskin leather biker jacket with silver hardware and drop shoulders. Edgy luxury, perfect for streetwear layering or evening dinner.',
+  },
+  {
+    label: 'Pleated Pants',
+    category: 'Bottoms',
+    brand: 'Issey Miyake',
+    color: '#273238',
+    description: 'Deep charcoal pleated tapered trousers in high-density technical fabric. Fluid drape, versatile for minimalist chic, VIP dinners, or gallery openings.',
+  },
+  {
+    label: 'Chunky Sneaker',
+    category: 'Footwear',
+    brand: 'Salomon',
+    color: '#324238',
+    description: 'Olive and forest green trail runner with technical mesh and contoured lug soles. Gorpcore street aesthetic for active or casual days.',
+  },
+  {
+    label: 'Cashmere Knit',
+    category: 'Tops',
+    brand: 'The Row',
+    color: '#D5C4A1',
+    description: 'Sand beige 100% fine Mongolian cashmere crewneck sweater with ribbed trims. Ultra-soft quiet luxury knitwear for upscale dinners and casual chic.',
+  },
+  {
+    label: 'Shoulder Bag',
+    category: 'Accessories',
+    brand: 'Bottega Veneta',
+    color: '#1E2522',
+    description: 'Intrecciato woven black nappa leather cassette shoulder bag with chunky metallic triangle buckle. Timeless luxury evening accessory.',
+  },
 ];
 
 export const UploadModal: React.FC<UploadModalProps> = ({
@@ -40,6 +71,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState<Category>('Tops');
   const [status, setStatus] = useState<ItemStatus>('Unworn');
+  const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [campaignTag, setCampaignTag] = useState('');
   const [notes, setNotes] = useState('');
@@ -129,17 +161,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       await onUpload({
         brand: brand.trim(),
         category,
-        status,
+        status: status || 'Unworn',
+        description: description.trim() || undefined,
         image_url: finalImage,
         campaign_tag: campaignTag.trim() || undefined,
         notes: notes.trim() || undefined,
-        return_deadline: status === 'Needs Returning' ? returnDeadline : undefined,
+        return_deadline: status === 'Needs Returning' && returnDeadline ? returnDeadline : undefined,
       });
 
       // Reset form
       setBrand('');
       setCategory('Tops');
       setStatus('Unworn');
+      setDescription('');
       setImageUrl('');
       setCampaignTag('');
       setNotes('');
@@ -155,6 +189,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const handleApplyPreset = (preset: typeof SAMPLE_PRESETS[0]) => {
     setBrand(preset.brand);
     setCategory(preset.category);
+    setDescription(preset.description);
     setImageUrl(generatePlaceholderSvg(preset.brand, preset.category));
     setCampaignTag(`Ambassador PR Drop`);
   };
@@ -307,9 +342,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
             {/* Status Dropdown */}
             <div>
-              <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-1.5">
-                Status *
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+                  Status
+                </label>
+                <span className="text-[11px] text-neutral-400 font-normal lowercase">(optional)</span>
+              </div>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as ItemStatus)}
@@ -322,6 +360,29 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Piece Description (Color, Material, Silhouette, Styling Details) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                Piece Description & Styling Details
+              </label>
+              <span className="text-[10px] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-medium">
+                Used by AI Stylist
+              </span>
+            </div>
+            <textarea
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Tailored black wool blazer with silk lapels, structured fit. High-end evening aesthetic, pairs great with dress trousers or dark silk skirts for fancy dinners."
+              className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 resize-none transition-all"
+            />
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Specify color, material (silk, cashmere, wool, denim, fleece), fit, and vibe. The AI stylist uses this rich context to craft occasion-perfect looks (e.g., choosing tailored wool instead of sweatpants for a fancy dinner).
+            </p>
           </div>
 
           {/* Return Deadline (shown conditionally if Needs Returning) */}
