@@ -46,9 +46,10 @@ class OutfitBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
     occasion: str = Field(default="Streetwear", max_length=100)
     status: Optional[str] = Field(default="Concepting", max_length=100)
-    model_image_url: str = Field(..., description="Image URL of ambassador wearing the outfit")
+    model_image_url: str = Field(default="", description="Image URL of ambassador wearing the outfit")
     item_ids: str = Field(default="", description="Comma-separated IDs of clothing items")
     styling_notes: Optional[str] = None
+    is_custom_fit_pic: Optional[bool] = False
 
 
 class OutfitCreate(OutfitBase):
@@ -62,6 +63,7 @@ class OutfitUpdate(BaseModel):
     model_image_url: Optional[str] = None
     item_ids: Optional[str] = None
     styling_notes: Optional[str] = None
+    is_custom_fit_pic: Optional[bool] = None
 
 
 class OutfitResponse(OutfitBase):

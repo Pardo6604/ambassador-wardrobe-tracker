@@ -203,7 +203,7 @@ export const Dashboard: React.FC = () => {
   const handleDeleteOutfit = async (outfitId: string) => {
     await apiService.deleteOutfit(outfitId);
     setOutfits(prev => prev.filter(o => o.id !== outfitId));
-    showToast('Outfit suggestion removed');
+    showToast('Outfit removed');
   };
 
   // Account & Profile Handlers
@@ -255,13 +255,13 @@ export const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6">
           <div>
             <h1 className="text-3xl sm:text-4xl font-semibold tracking-normal text-neutral-900 font-sans">
-              {currentTab === 'closet' ? 'Virtual Closet' : currentTab === 'outfits' ? 'Suggested Outfits' : 'Campaigns Board'}
+              {currentTab === 'closet' ? 'Virtual Closet' : currentTab === 'outfits' ? 'Outfits' : 'Campaigns Board'}
             </h1>
             <p className="text-sm text-neutral-500 mt-1">
               {currentTab === 'closet'
                 ? 'Track seeded PR packages, worn campaign looks, and showroom returns.'
                 : currentTab === 'outfits'
-                ? 'Curated outfit formulas pairing your PR items with photos of you wearing the looks.'
+                ? 'Manage your styled looks, explore AI outfit suggestions, and track ambassador fit pics.'
                 : 'Track brand deliverables, campaign deadlines, and linked outfits.'}
             </p>
           </div>

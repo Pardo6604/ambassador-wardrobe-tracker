@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Zone 2: Navigation Switcher Tabs (Closet vs Outfit Suggestions) */}
+        {/* Zone 2: Navigation Switcher Tabs (Closet vs Outfits vs Campaigns) */}
         <nav className="flex items-center p-1 bg-neutral-200/60 rounded-xl">
           <button
             onClick={() => onSelectTab('closet')}
@@ -65,7 +65,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Outfit Suggestions</span>
+            <span>Outfits</span>
             <span className="text-[10px] px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded-full font-bold tabular-nums">
               {outfitsCount}
             </span>

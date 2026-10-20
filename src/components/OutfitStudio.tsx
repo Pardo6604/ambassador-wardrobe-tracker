@@ -33,6 +33,20 @@ interface OutfitStudioProps {
   onClearTargetOutfit?: () => void;
 }
 
+export type OutfitSubSection = 'all' | 'suggestions' | 'my-looks';
+
+export const isOutfitSuggestion = (o: OutfitSuggestion): boolean => {
+  if (o.is_custom_fit_pic) return false;
+  const s = (o.status || '').toLowerCase();
+  if (s === 'suggested' || s === 'concepting') return true;
+  const t = (o.title || '').toLowerCase();
+  if (t.includes('package') || t.includes('suggestion')) return true;
+  const notes = (o.styling_notes || '').toLowerCase();
+  if (notes.includes('curated outfit package') || notes.includes('curated combination')) return true;
+  if (!o.model_image_url || o.model_image_url === '') return true;
+  return false;
+};
+
 export const OutfitStudio: React.FC<OutfitStudioProps> = ({
   outfits,
   clothingItems,
@@ -61,6 +75,7 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
     ];
   }, [profile.custom_occasions]);
 
+  const [activeSubSection, setActiveSubSection] = useState<OutfitSubSection>('all');
   const [selectedOccasion, setSelectedOccasion] = useState<string>('All');
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isTryOnOpen, setIsTryOnOpen] = useState(false);
@@ -86,6 +101,7 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
   React.useEffect(() => {
     if (targetOutfitId) {
       setSelectedOccasion('All');
+      setActiveSubSection('all');
       setTimeout(() => {
         const el = document.getElementById(`outfit-${targetOutfitId}`);
         if (el) {
@@ -98,11 +114,20 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
     }
   }, [targetOutfitId, onClearTargetOutfit]);
 
-  // Filter outfits
+  const suggestedOutfits = useMemo(() => outfits.filter(isOutfitSuggestion), [outfits]);
+  const myLooksOutfits = useMemo(() => outfits.filter(o => !isOutfitSuggestion(o)), [outfits]);
+
+  const baseList = useMemo(() => {
+    if (activeSubSection === 'suggestions') return suggestedOutfits;
+    if (activeSubSection === 'my-looks') return myLooksOutfits;
+    return outfits;
+  }, [activeSubSection, suggestedOutfits, myLooksOutfits, outfits]);
+
+  // Filter outfits by occasion
   const filteredOutfits = useMemo(() => {
-    if (selectedOccasion === 'All') return outfits;
-    return outfits.filter(o => o.occasion.toLowerCase() === selectedOccasion.toLowerCase());
-  }, [outfits, selectedOccasion]);
+    if (selectedOccasion === 'All') return baseList;
+    return baseList.filter(o => o.occasion.toLowerCase() === selectedOccasion.toLowerCase());
+  }, [baseList, selectedOccasion]);
 
   const activeOutfitForFitPic = useMemo(() => {
     return outfits.find(o => o.id === activeUploadOutfitId) || null;
@@ -160,6 +185,7 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
         if (onOutfitGenerated) {
           onOutfitGenerated(newOutfit);
         }
+        setActiveSubSection('suggestions');
       }
     } catch (e: any) {
       alert(e.message || "Failed to auto-suggest outfit package.");
@@ -193,7 +219,7 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
               </span>
             </div>
             <p className="text-xs text-neutral-500 mt-0.5">
-              Brand Ambassador Fit Lookbook · See yourself styled in suggested PR outfit combinations
+              Brand Ambassador Lookbook · Manage your styled looks, explore AI outfit suggestions, and track fit pics
             </p>
           </div>
         </div>
@@ -233,6 +259,115 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
         </div>
       </div>
 
+      {/* Subsections Navigation Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200/80 pb-4">
+        <div className="flex items-center p-1 bg-neutral-200/70 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveSubSection('all')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeSubSection === 'all'
+                ? 'bg-white text-neutral-900 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <span>All Outfits</span>
+            <span className="text-[10px] px-1.5 py-0.2 bg-neutral-100 text-neutral-700 rounded-full font-bold tabular-nums">
+              {outfits.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubSection('suggestions')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeSubSection === 'suggestions'
+                ? 'bg-white text-neutral-900 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Suggestions</span>
+            <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-900 rounded-full font-bold tabular-nums">
+              {suggestedOutfits.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubSection('my-looks')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeSubSection === 'my-looks'
+                ? 'bg-white text-neutral-900 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Camera className="w-3.5 h-3.5 text-neutral-500" />
+            <span>My Looks</span>
+            <span className="text-[10px] px-1.5 py-0.2 bg-neutral-100 text-neutral-700 rounded-full font-bold tabular-nums">
+              {myLooksOutfits.length}
+            </span>
+          </button>
+        </div>
+
+        <span className="text-xs text-neutral-500 font-medium hidden sm:inline">
+          Showing <strong className="text-neutral-900 font-semibold">{filteredOutfits.length}</strong> {activeSubSection === 'suggestions' ? 'outfit suggestions' : activeSubSection === 'my-looks' ? 'looks' : 'outfits'}
+        </span>
+      </div>
+
+      {/* Subsection Focus Banner: Suggestions */}
+      {activeSubSection === 'suggestions' && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-800 border border-amber-300/40 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-neutral-900 font-['Syne',sans-serif] flex items-center gap-2">
+                <span>AI Outfit Suggestions</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200/60 text-amber-900 font-semibold uppercase tracking-wider">
+                  Description-Based
+                </span>
+              </h3>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Curated packages suggested by AI analyzing your clothes' materials, cuts, and color harmonies.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsSuggestModalOpen(true)}
+            disabled={isAutoSuggesting}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer shrink-0 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isAutoSuggesting ? 'Curating...' : 'Curate New Suggestion'}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Subsection Focus Banner: My Looks */}
+      {activeSubSection === 'my-looks' && (
+        <div className="bg-neutral-50 border border-neutral-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-neutral-200 text-neutral-700 flex items-center justify-center shrink-0">
+              <Camera className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-neutral-900 font-['Syne',sans-serif]">
+                My Styled Looks & Fit Pics
+              </h3>
+              <p className="text-xs text-neutral-600 mt-0.5">
+                Outfits you have personally assembled or captured wearing real-life ambassador fit photos.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsBuilderOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-neutral-900 hover:bg-neutral-800 shadow-sm rounded-lg transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Style New Outfit</span>
+          </button>
+        </div>
+      )}
+
       {/* Filter Row: Occasion Tabs */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -259,10 +394,6 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
             );
           })}
         </div>
-
-        <span className="text-xs text-neutral-500 font-medium hidden sm:inline">
-          Showing <strong className="text-neutral-900 font-semibold">{filteredOutfits.length}</strong> suggested outfits
-        </span>
       </div>
 
       {/* Pinterest-style Outfit Grid */}
@@ -288,10 +419,18 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
             <PackageOpen className="w-6 h-6 stroke-[1.7]" />
           </div>
           <h3 className="text-base font-bold text-neutral-900 font-['Syne',sans-serif]">
-            No outfits found for this vibe
+            {activeSubSection === 'suggestions'
+              ? 'No outfit suggestions for this vibe'
+              : activeSubSection === 'my-looks'
+              ? 'No styled looks for this vibe'
+              : 'No outfits found for this vibe'}
           </h3>
           <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">
-            Build your first outfit combination or auto-generate a look from your seeded wardrobe.
+            {activeSubSection === 'suggestions'
+              ? 'Click "Curate New Suggestion" to let the AI stylist assemble an outfit package from your closet piece descriptions.'
+              : activeSubSection === 'my-looks'
+              ? 'Build a custom outfit combination or upload a fit pic of yourself wearing your wardrobe items.'
+              : 'Build your first outfit combination or let the AI stylist auto-curate a package from your wardrobe.'}
           </p>
           <div className="mt-4 flex items-center justify-center gap-2">
             <button
@@ -300,13 +439,23 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
             >
               Show All
             </button>
-            <button
-              onClick={() => setIsBuilderOpen(true)}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Style Look</span>
-            </button>
+            {activeSubSection === 'suggestions' ? (
+              <button
+                onClick={() => setIsSuggestModalOpen(true)}
+                className="px-4 py-1.5 text-xs font-semibold text-neutral-900 bg-amber-300 hover:bg-amber-400 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Curate Suggestion</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsBuilderOpen(true)}
+                className="px-4 py-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg flex items-center gap-1.5 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Style Look</span>
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -25,6 +25,17 @@ export const OutfitCard: React.FC<OutfitCardProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showFitPic, setShowFitPic] = useState(false);
 
+  const isSuggestion = Boolean(
+    !outfit.is_custom_fit_pic &&
+    (outfit.status?.toLowerCase() === 'suggested' ||
+     outfit.status?.toLowerCase() === 'concepting' ||
+     outfit.title.toLowerCase().includes('package') ||
+     outfit.title.toLowerCase().includes('suggestion') ||
+     outfit.styling_notes?.toLowerCase().includes('curated outfit package') ||
+     outfit.styling_notes?.toLowerCase().includes('curated combination') ||
+     !outfit.model_image_url)
+  );
+
   // Match the outfit's item IDs with actual wardrobe items
   const matchedPieces = outfit.item_ids
     .map(id => allItems.find(item => item.id === id))
@@ -186,9 +197,16 @@ export const OutfitCard: React.FC<OutfitCardProps> = ({
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10 pointer-events-none">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-tight bg-white/95 backdrop-blur-md text-neutral-900 shadow-sm border border-neutral-200/80">
-            <Sparkles className="w-3 h-3 text-amber-500" />
-            <span>{outfit.occasion}</span>
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-tight bg-white/95 backdrop-blur-md text-neutral-900 shadow-sm border border-neutral-200/80">
+              <Sparkles className="w-3 h-3 text-amber-500" />
+              <span>{outfit.occasion}</span>
+            </div>
+            {isSuggestion && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-neutral-900 shadow-xs border border-amber-300">
+                Suggestion
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1 pointer-events-auto">

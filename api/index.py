@@ -519,7 +519,7 @@ def auto_suggest_outfit(
         model_image_url="",
         item_ids=",".join(str(p.id) for p in outfit_items),
         styling_notes=notes,
-        status="Concepting"
+        status="Suggested"
     )
     db.add(new_outfit)
     db.commit()
@@ -825,9 +825,11 @@ def create_outfit(
         user_id=current_user.id,
         title=outfit_in.title,
         occasion=outfit_in.occasion,
+        status=outfit_in.status or "Styled",
         model_image_url=outfit_in.model_image_url,
         item_ids=outfit_in.item_ids,
-        styling_notes=outfit_in.styling_notes
+        styling_notes=outfit_in.styling_notes,
+        is_custom_fit_pic=outfit_in.is_custom_fit_pic or False
     )
     db.add(new_outfit)
     db.commit()
@@ -854,8 +856,14 @@ def update_outfit(
         outfit.title = outfit_update.title
     if outfit_update.occasion is not None:
         outfit.occasion = outfit_update.occasion
+    if outfit_update.status is not None:
+        outfit.status = outfit_update.status
     if outfit_update.model_image_url is not None:
         outfit.model_image_url = outfit_update.model_image_url
+        if outfit_update.model_image_url.strip():
+            outfit.is_custom_fit_pic = True
+    if outfit_update.is_custom_fit_pic is not None:
+        outfit.is_custom_fit_pic = outfit_update.is_custom_fit_pic
     if outfit_update.item_ids is not None:
         outfit.item_ids = outfit_update.item_ids
     if outfit_update.styling_notes is not None:
