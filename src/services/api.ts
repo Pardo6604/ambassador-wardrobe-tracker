@@ -539,10 +539,11 @@ export const apiService = {
 
   async register(email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> {
     try {
+      const cleanEmail = (email || '').trim().toLowerCase();
       const res = await fetch('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
+        body: JSON.stringify({ email: cleanEmail, password, name: name.trim() })
       });
       if (res.ok) return { success: true };
       let errMsg = 'Registration failed.';
@@ -560,10 +561,11 @@ export const apiService = {
 
   async login(email: string, password?: string): Promise<{ success: boolean; error?: string }> {
     try {
+      const cleanEmail = (email || '').trim().toLowerCase();
       const res = await fetch('/api/user/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: password || 'password123' })
+        body: JSON.stringify({ email: cleanEmail, password: password || 'password123' })
       });
       if (res.ok) {
         const data = await res.json();
@@ -571,11 +573,13 @@ export const apiService = {
           localStorage.setItem(TOKEN_KEY, data.access_token);
           localStorage.setItem('closet_pr_auth_session', 'logged_in');
           // fetch profile to update local storage
-          const profRes = await fetch('/api/user/profile', { headers: getAuthHeader() });
-          if (profRes.ok) {
-             const profile = await profRes.json();
-             localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-          }
+          try {
+            const profRes = await fetch('/api/user/profile', { headers: getAuthHeader() });
+            if (profRes.ok) {
+               const profile = await profRes.json();
+               localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+            }
+          } catch {}
         }
         return { success: true };
       }

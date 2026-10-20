@@ -6,7 +6,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 
 import sys
 import os
@@ -98,8 +98,8 @@ load_dotenv()
 from datetime import timedelta
 
 # Create tables on startup if they don't exist yet
-Base.metadata.create_all(bind=engine)
 try:
+    Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
         if engine.dialect.name == "postgresql":
             conn.execute(text("ALTER TABLE clothing_items ADD COLUMN IF NOT EXISTS description VARCHAR(2048);"))
@@ -109,8 +109,24 @@ try:
             columns = [row[1] for row in cursor.fetchall()]
             if "description" not in columns:
                 conn.execute(text("ALTER TABLE clothing_items ADD COLUMN description VARCHAR(2048);"))
-except Exception as migration_err:
-    print(f"Non-critical schema migration notice: {migration_err}")
+
+    # Auto-seed initial demo user if database has 0 users
+    with Session(bind=engine) as seed_db:
+        if seed_db.query(User).count() == 0:
+            demo_user = User(
+                id=uuid.uuid4(),
+                email="pardo@gmail.com",
+                password_hash=get_password_hash("password123"),
+                name="Pardo",
+                handle="pardo",
+                avatar_url=None,
+                bio="Brand Ambassador"
+            )
+            seed_db.add(demo_user)
+            seed_db.commit()
+            print("Auto-seeded initial demo account: pardo@gmail.com")
+except Exception as startup_err:
+    print(f"Non-critical database initialization notice: {startup_err}")
 
 app = FastAPI(
     title="ClosetPR Ambassador API",
@@ -129,20 +145,22 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-def health_check():
+def health_check(db: Session = Depends(get_db)):
+    db_status = "connected"
+    users_count = 0
+    try:
+        users_count = db.query(User).count()
+    except Exception as e:
+        db_status = f"unreachable: {str(e)}"
     return {
         "status": "healthy",
         "service": "ClosetPR FastAPI Vercel Serverless",
-        "endpoints": [
-            "GET /api/items",
-            "POST /api/items/upload",
-            "PUT /api/items/{id}",
-            "DELETE /api/items/{id}",
-            "GET /api/outfits",
-            "POST /api/outfits",
-            "PUT /api/outfits/{id}",
-            "DELETE /api/outfits/{id}"
-        ]
+        "database": {
+            "dialect": engine.dialect.name,
+            "status": db_status,
+            "user_count": users_count,
+            "has_env_db_url": bool(os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL"))
+        }
     }
 
 
@@ -988,17 +1006,21 @@ def delete_outfit(
 @app.post("/api/user/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     """Register a new ambassador."""
-    existing_user = db.query(User).filter(User.email == user_in.email).first()
+    clean_email = user_in.email.strip().lower()
+    existing_user = db.query(User).filter(func.lower(User.email) == clean_email).first()
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="This email is already registered. Please sign in instead.")
     
     hashed_password = get_password_hash(user_in.password)
+    clean_name = user_in.name.strip() if user_in.name else "Ambassador"
+    clean_handle = user_in.handle.strip() if user_in.handle else clean_email.split('@')[0]
+    
     new_user = User(
         id=uuid.uuid4(),
-        email=user_in.email,
+        email=clean_email,
         password_hash=hashed_password,
-        name=user_in.name,
-        handle=user_in.handle,
+        name=clean_name,
+        handle=clean_handle,
         avatar_url=None,
         bio=None
     )
@@ -1010,11 +1032,40 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 @app.post("/api/user/login", response_model=Token)
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     """Authenticate ambassador and return JWT token."""
-    user = db.query(User).filter(User.email == login_data.email).first()
-    if not user or not verify_password(login_data.password, user.password_hash):
+    clean_email = login_data.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == clean_email).first()
+    
+    # Auto-seed pardo demo account on-the-fly if missing (e.g. ephemeral serverless db)
+    if not user and clean_email == "pardo@gmail.com":
+        try:
+            demo_user = User(
+                id=uuid.uuid4(),
+                email="pardo@gmail.com",
+                password_hash=get_password_hash("password123"),
+                name="Pardo",
+                handle="pardo",
+                avatar_url=None,
+                bio="Brand Ambassador"
+            )
+            db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+            user = demo_user
+        except Exception:
+            db.rollback()
+            user = db.query(User).filter(func.lower(User.email) == clean_email).first()
+
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail=f"No account found with email '{clean_email}'. Please register a new account or check spelling.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    if not verify_password(login_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password. Please verify your password and try again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     

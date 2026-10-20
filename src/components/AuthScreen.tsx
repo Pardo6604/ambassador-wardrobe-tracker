@@ -14,19 +14,28 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fillDemo = () => {
+    setEmail('pardo@gmail.com');
+    setPassword('password123');
+    setError(null);
+    setIsRegistering(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       if (isRegistering) {
-        const regRes = await apiService.register(email, password, name);
+        const regRes = await apiService.register(cleanEmail, password, name.trim());
         if (regRes.success) {
           // auto login after register
-          const loginRes = await apiService.login(email, password);
+          const loginRes = await apiService.login(cleanEmail, password);
           if (loginRes.success) {
-            onSignIn(email);
+            onSignIn(cleanEmail);
           } else {
             setError(loginRes.error || 'Registration succeeded, but login failed. Please try logging in.');
             setIsRegistering(false);
@@ -35,9 +44,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
           setError(regRes.error || 'Registration failed.');
         }
       } else {
-        const loginRes = await apiService.login(email, password);
+        const loginRes = await apiService.login(cleanEmail, password);
         if (loginRes.success) {
-          onSignIn(email);
+          onSignIn(cleanEmail);
         } else {
           setError(loginRes.error || 'Invalid email or password.');
         }
@@ -65,10 +74,37 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white py-8 px-6 sm:px-10 shadow-xl rounded-2xl border border-neutral-200/80">
+          {/* Quick Demo Credentials Autofill Banner */}
+          <div className="mb-5 p-3 bg-neutral-50 rounded-xl border border-neutral-200/80 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-semibold text-neutral-800 uppercase tracking-wider">Demo Account</p>
+              <p className="text-xs text-neutral-500 font-mono">pardo@gmail.com</p>
+            </div>
+            <button
+              type="button"
+              onClick={fillDemo}
+              className="px-3 py-1.5 text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 rounded-lg shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              Autofill
+            </button>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-center">
-                {error}
+              <div className="p-3.5 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-xl space-y-1.5 text-center">
+                <p className="font-medium">{error}</p>
+                {error.toLowerCase().includes('not found') && !isRegistering && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegistering(true);
+                      setError(null);
+                    }}
+                    className="inline-block text-[11px] font-bold text-rose-900 underline hover:text-rose-950 mt-1 cursor-pointer"
+                  >
+                    Click here to create this account now &rarr;
+                  </button>
+                )}
               </div>
             )}
             
