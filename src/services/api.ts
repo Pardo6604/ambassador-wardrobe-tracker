@@ -616,10 +616,9 @@ export const apiService = {
     }
   },
 
-  async autoSuggestOutfit(avatarId?: string, prompt?: string): Promise<OutfitSuggestion | null> {
+  async autoSuggestOutfit(prompt?: string): Promise<OutfitSuggestion | null> {
     try {
       const params = new URLSearchParams();
-      if (avatarId) params.set('avatar_id', avatarId);
       if (prompt && prompt.trim()) params.set('prompt', prompt.trim());
       const queryStr = params.toString() ? `?${params.toString()}` : '';
       const url = `/api/outfits/auto-suggest${queryStr}`;

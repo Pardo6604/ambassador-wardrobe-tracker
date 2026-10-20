@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { OutfitSuggestion, ClothingItem } from '../types';
-import { X, Trash2, Camera } from 'lucide-react';
+import { X, Trash2, Camera, Package } from 'lucide-react';
 
 interface OutfitDetailModalProps {
   outfit: OutfitSuggestion | null;
@@ -49,17 +49,27 @@ export const OutfitDetailModal: React.FC<OutfitDetailModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm sm:items-end">
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-4">
         
-        {/* Header Image */}
-        <div className="relative aspect-video bg-neutral-100 flex items-center justify-center overflow-hidden">
-          <img
-            src={outfit.model_image_url}
-            alt={outfit.title}
-            className="w-full h-full object-cover object-top"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        {/* Header Visual */}
+        <div className="relative aspect-video bg-[#F6F5F2] flex items-center justify-center overflow-hidden border-b border-neutral-100">
+          {outfit.model_image_url ? (
+            <img
+              src={outfit.model_image_url}
+              alt={outfit.title}
+              className="w-full h-full object-cover object-top"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-6 text-center text-neutral-500">
+              <div className="w-12 h-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center mb-2 shadow-xs">
+                <Package className="w-6 h-6 stroke-[1.8] text-amber-400" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-800">Curated Outfit Package</span>
+              <span className="text-[11px] text-neutral-400 mt-0.5">{outfit.occasion}</span>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
           <button 
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-full text-white transition-colors cursor-pointer"
+            className="absolute top-4 right-4 p-2 bg-black/30 hover:bg-black/50 backdrop-blur-md rounded-full text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

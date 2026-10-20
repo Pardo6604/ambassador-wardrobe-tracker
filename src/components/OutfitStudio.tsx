@@ -151,18 +151,18 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
 
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
 
-  const handleAutoSuggest = async (avatarId?: string, prompt?: string) => {
+  const handleAutoSuggest = async (prompt?: string) => {
     setIsAutoSuggesting(true);
     setIsSuggestModalOpen(false);
     try {
-      const newOutfit = await apiService.autoSuggestOutfit(avatarId, prompt);
+      const newOutfit = await apiService.autoSuggestOutfit(prompt);
       if (newOutfit) {
         if (onOutfitGenerated) {
           onOutfitGenerated(newOutfit);
         }
       }
     } catch (e: any) {
-      alert(e.message || "Failed to auto-suggest outfit.");
+      alert(e.message || "Failed to auto-suggest outfit package.");
     } finally {
       setIsAutoSuggesting(false);
     }
@@ -204,14 +204,14 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
             onClick={() => setIsSuggestModalOpen(true)}
             disabled={isAutoSuggesting}
             className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px] disabled:opacity-50"
-            title="Auto-suggest a look using your Avatars"
+            title="Auto-curate an outfit package based on wardrobe descriptions"
           >
             {isAutoSuggesting ? (
               <div className="w-3.5 h-3.5 border-2 border-neutral-900 border-t-transparent rounded-full animate-spin"></div>
             ) : (
               <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
             )}
-            <span className="hidden sm:inline">{isAutoSuggesting ? 'Creating...' : 'Surprise Me'}</span>
+            <span className="hidden sm:inline">{isAutoSuggesting ? 'Curating...' : 'AI Suggest Package'}</span>
           </button>
 
           <button
