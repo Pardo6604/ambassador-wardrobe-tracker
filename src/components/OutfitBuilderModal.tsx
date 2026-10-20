@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { ClothingItem, Category, OutfitSuggestion } from '../types';
 import { X, Check, Plus, Camera, Sparkles, Shirt } from 'lucide-react';
 import { createFitPicModelSvg } from '../data/seedData';
+import { compressImage } from '../utils/imageCompressor';
 
 interface OutfitBuilderModalProps {
   isOpen: boolean;
@@ -49,16 +50,21 @@ export const OutfitBuilderModal: React.FC<OutfitBuilderModalProps> = ({
     );
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        if (typeof evt.target?.result === 'string') {
-          setPhotoUrl(evt.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 1024, 0.85);
+        setPhotoUrl(compressed);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          if (typeof evt.target?.result === 'string') {
+            setPhotoUrl(evt.target.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 

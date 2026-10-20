@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { OutfitSuggestion, ClothingItem } from '../types';
 import { X, Upload, Camera, Check, Sparkles } from 'lucide-react';
 import { createFitPicModelSvg } from '../data/seedData';
+import { compressImage } from '../utils/imageCompressor';
 
 interface FitPicUploadModalProps {
   isOpen: boolean;
@@ -31,19 +32,24 @@ export const FitPicUploadModal: React.FC<FitPicUploadModalProps> = ({
     .map(id => allItems.find(item => item.id === id))
     .filter((item): item is ClothingItem => Boolean(item));
 
-  const handleFileProcess = (file: File) => {
+  const handleFileProcess = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setError('Please select an image file (PNG, JPG, WEBP).');
       return;
     }
     setError(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (typeof e.target?.result === 'string') {
-        setPhotoUrl(e.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImage(file, 1024, 0.85);
+      setPhotoUrl(compressed);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (typeof e.target?.result === 'string') {
+          setPhotoUrl(e.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {

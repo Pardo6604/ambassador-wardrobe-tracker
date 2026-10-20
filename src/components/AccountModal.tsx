@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { AmbassadorProfile } from '../types';
 import { X, User, Lock, Award, LogOut, Check, Camera, Shield, Mail, AtSign, Eye, EyeOff, Sparkles, Plus } from 'lucide-react';
+import { compressImage } from '../utils/imageCompressor';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -128,16 +129,21 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        if (typeof evt.target?.result === 'string') {
-          setAvatarUrl(evt.target.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await compressImage(file, 512, 0.85);
+        setAvatarUrl(compressed);
+      } catch {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          if (typeof evt.target?.result === 'string') {
+            setAvatarUrl(evt.target.result);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
