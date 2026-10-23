@@ -104,11 +104,17 @@ try:
         if engine.dialect.name == "postgresql":
             conn.execute(text("ALTER TABLE clothing_items ADD COLUMN IF NOT EXISTS description VARCHAR(2048);"))
             conn.execute(text("ALTER TABLE clothing_items ALTER COLUMN status DROP NOT NULL;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_styling_instructions VARCHAR(2048);"))
         elif engine.dialect.name == "sqlite":
             cursor = conn.execute(text("PRAGMA table_info(clothing_items);"))
             columns = [row[1] for row in cursor.fetchall()]
             if "description" not in columns:
                 conn.execute(text("ALTER TABLE clothing_items ADD COLUMN description VARCHAR(2048);"))
+            
+            cursor_u = conn.execute(text("PRAGMA table_info(users);"))
+            user_cols = [row[1] for row in cursor_u.fetchall()]
+            if "ai_styling_instructions" not in user_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN ai_styling_instructions VARCHAR(2048);"))
 
     # Auto-seed initial demo user if database has 0 users
     with Session(bind=engine) as seed_db:
@@ -303,36 +309,52 @@ def delete_avatar(avatar_id: uuid.UUID, current_user: User = Depends(get_current
     db.commit()
     return None
 
-def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] = None):
+def curate_outfit_from_closet(
+    items: List[ClothingItem], 
+    prompt: Optional[str] = None, 
+    instructions: Optional[str] = None
+):
     """
     Intelligent Fashion Stylist Curation Engine.
     Leverages item descriptions (color, material, silhouette, cut, aesthetic), category, and brand
-    alongside editorial styling guidelines to assemble the optimal look for the requested occasion.
-    Prevents mismatched casual/activewear (like sweatpants and tank tops) for formal/dinner requests.
+    alongside editorial styling guidelines and user-defined instructions to assemble the optimal look.
     """
     if not items:
         return [], "Empty Closet", "Casual", "No items available to style."
 
     p_raw = (prompt or "").strip()
     p_lower = p_raw.lower()
+    inst_raw = (instructions or "").strip()
+    inst_lower = inst_raw.lower()
 
-    # Determine primary style theme from prompt
-    is_formal = any(w in p_lower for w in [
+    # Determine primary style theme from prompt and instructions
+    combined_intent = f"{p_lower} {inst_lower}".strip()
+
+    is_formal = any(w in combined_intent for w in [
         "dinner", "fancy", "formal", "gala", "cocktail", "vip", "evening", 
         "date", "chic", "party", "luxury", "black tie", "night out", "elegant", "upscale"
     ])
-    is_streetwear = any(w in p_lower for w in [
+    is_streetwear = any(w in combined_intent for w in [
         "street", "streetwear", "urban", "hype", "cargo", "sneaker", "grunge", "edgy", "grwm"
     ])
-    is_summer = any(w in p_lower for w in [
-        "summer", "beach", "resort", "warm", "sunny", "vacation", "pool"
+    is_summer = any(w in combined_intent for w in [
+        "summer", "beach", "resort", "warm", "sunny", "vacation", "pool", "linen"
     ])
-    is_active = any(w in p_lower for w in [
+    is_active = any(w in combined_intent for w in [
         "gym", "workout", "sport", "active", "run", "athletic", "training"
     ])
-    is_business = any(w in p_lower for w in [
+    is_business = any(w in combined_intent for w in [
         "business", "meeting", "office", "showroom", "work", "presentation"
     ])
+
+    # Instruction flags
+    require_outerwear = any(w in inst_lower for w in ["jacket", "coat", "blazer", "layer", "outerwear", "outer"])
+    require_accessories = any(w in inst_lower for w in ["accessory", "accessories", "bag", "jewelry", "belt", "sunglasses", "hat", "cap"])
+    no_sneakers = any(w in inst_lower for w in ["no sneaker", "no sneakers", "no athletic", "formal shoes", "loafers only", "boots only", "heels only"])
+    is_monochrome = any(w in inst_lower for w in ["monochrome", "monochromatic", "ton-sur-ton", "tone on tone", "single color", "all black", "all white", "all cream"])
+    is_earth_tones = any(w in inst_lower for w in ["earth tone", "earthy", "brown", "tan", "camel", "olive", "warm tone", "neutral tone"])
+    is_high_low = any(w in inst_lower for w in ["high-low", "high low", "contrast", "mix luxury", "casual and formal", "juxtaposition"])
+    prioritize_unworn = any(w in inst_lower for w in ["unworn", "seeded", "pr", "new piece", "new pieces"])
 
     theme = "Editorial Chic"
     if is_formal:
@@ -348,68 +370,121 @@ def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] =
     elif p_raw:
         theme = p_raw.title()
 
-    # Editorial material & silhouette guidelines
-    formal_boost = [
-        "wool", "cashmere", "silk", "satin", "velvet", "leather", "blazer", "suit", 
-        "tailored", "trouser", "pleat", "crepe", "dress", "gown", "slip", "oxford", 
-        "loafer", "heel", "structured", "chic", "elegant", "the row", "issey miyake", 
-        "bottega", "saint laurent", "jacquemus", "chanel", "dior", "prada"
-    ]
-    formal_penalties = [
-        "sweat", "fleece", "tank top", "tank", "jogger", "gym", "running", 
-        "athletic", "shorts", "distressed", "track", "hoodie"
-    ]
+    # Fashion vocabulary for color and fabric detection
+    COLOR_MAP = {
+        "black": ["black", "noir", "charcoal", "onyx"],
+        "white": ["white", "ivory", "cream", "bone", "ecru", "pearl"],
+        "beige": ["beige", "tan", "camel", "sand", "khaki", "taupe", "nude"],
+        "brown": ["brown", "chocolate", "espresso", "cognac", "terracotta", "rust", "caramel"],
+        "grey": ["grey", "gray", "slate", "heather", "ash", "silver"],
+        "navy": ["navy", "indigo", "midnight blue"],
+        "blue": ["blue", "denim", "cobalt", "sky blue", "cyan", "baby blue"],
+        "green": ["olive", "sage", "forest green", "emerald", "army green", "moss", "green"],
+        "red": ["burgundy", "bordeaux", "maroon", "wine", "crimson", "cherry", "red"],
+        "pink": ["pink", "blush", "rose", "magenta", "fuschia"],
+        "yellow": ["mustard", "yellow", "gold", "ochre", "butter"],
+        "orange": ["orange", "peach", "coral"],
+        "purple": ["purple", "lavender", "violet", "plum", "lilac"],
+    }
 
-    streetwear_boost = [
-        "denim", "jean", "leather", "jacket", "cargo", "hoodie", "sneaker", 
-        "chunky", "bomber", "cotton", "salomon", "acne studios", "stussy", "oversized"
-    ]
+    FABRIC_MAP = {
+        "luxury": ["wool", "cashmere", "silk", "satin", "velvet", "crepe", "chiffon", "gabardine"],
+        "casual": ["denim", "cotton", "fleece", "terry", "canvas", "corduroy"],
+        "summer": ["linen", "viscose", "rayon", "bamboo", "crochet"],
+        "leather": ["leather", "suede", "shearling"]
+    }
 
-    active_boost = [
-        "fleece", "sweat", "jogger", "athletic", "tank", "sneaker", "running", "gym", "legging"
-    ]
+    def detect_colors(text: str) -> List[str]:
+        found = []
+        t = text.lower()
+        for family, keywords in COLOR_MAP.items():
+            if any(k in t for k in keywords):
+                found.append(family)
+        return found
+
+    def detect_fabrics(text: str) -> List[str]:
+        found = []
+        t = text.lower()
+        for group, keywords in FABRIC_MAP.items():
+            for k in keywords:
+                if k in t:
+                    found.append(k)
+        return found
 
     def score_item(item: ClothingItem) -> float:
         desc_val = item.description or ""
         text = f"{item.brand or ''} {item.category or ''} {desc_val}".lower()
-        score = 10.0
-        
-        # Prefer unworn items for brand ambassadors
-        if item.status == "Unworn":
-            score += 8.0
+        score = 15.0
 
-        # Match exact words from user prompt
+        # Ambassador PR priority: reward unworn pieces
+        if item.status == "Unworn":
+            score += 35.0 if prioritize_unworn else 12.0
+
+        # Match occasion prompt keywords
         if p_lower:
             words = [w for w in p_lower.split() if len(w) > 3]
             for w in words:
                 if w in text:
                     score += 25.0
 
-        # Apply theme-specific rules
+        # Match user styling instructions keywords
+        if inst_lower:
+            inst_words = [w for w in inst_lower.split() if len(w) > 3 and w not in ["always", "never", "with", "only", "should", "could"]]
+            for w in inst_words:
+                if w in text:
+                    score += 30.0
+
+        # Monochrome instruction
+        if is_monochrome:
+            if "black" in inst_lower and any(c in text for c in ["black", "charcoal", "dark"]):
+                score += 40.0
+            elif "white" in inst_lower and any(c in text for c in ["white", "ivory", "cream"]):
+                score += 40.0
+            elif any(c in text for c in ["black", "white", "grey", "cream"]):
+                score += 20.0
+
+        # Earth tones instruction
+        if is_earth_tones:
+            if any(c in text for c in ["brown", "tan", "camel", "olive", "khaki", "cream", "rust", "chocolate"]):
+                score += 35.0
+
+        # No sneakers instruction
+        if no_sneakers:
+            if any(w in text for w in ["sneaker", "running", "athletic", "trainer"]):
+                score -= 100.0
+            if any(w in text for w in ["loafer", "boot", "oxford", "derby", "heel", "mule"]):
+                score += 40.0
+
+        # Formality Rules & Strict Penalties
         if is_formal:
-            for b in formal_boost:
-                if b in text:
-                    score += 15.0
-            for pen in formal_penalties:
-                if pen in text:
-                    score -= 80.0  # heavily penalize sweatpants, tank tops, gym fleece for fancy dinners
-        elif is_streetwear:
-            for b in streetwear_boost:
-                if b in text:
-                    score += 15.0
-            if "tuxedo" in text or "gown" in text:
-                score -= 40.0
-        elif is_active:
-            for b in active_boost:
+            for b in ["wool", "cashmere", "silk", "satin", "velvet", "blazer", "suit", "tailored", "trouser", "pleat", "crepe", "oxford", "loafer", "heel"]:
                 if b in text:
                     score += 20.0
+            for pen in ["sweat", "fleece", "tank top", "tank", "jogger", "gym", "running", "athletic", "shorts", "distressed", "track", "hoodie"]:
+                if pen in text:
+                    score -= 85.0
+        elif is_streetwear:
+            for b in ["denim", "jean", "leather", "jacket", "cargo", "hoodie", "sneaker", "chunky", "bomber", "cotton", "oversized"]:
+                if b in text:
+                    score += 20.0
+            if "tuxedo" in text or "evening gown" in text:
+                score -= 40.0
+        elif is_active:
+            for b in ["fleece", "sweat", "jogger", "athletic", "tank", "sneaker", "running", "gym", "legging"]:
+                if b in text:
+                    score += 25.0
             if "blazer" in text or "gown" in text or "suit" in text:
-                score -= 60.0
+                score -= 70.0
         elif is_business:
-            if any(w in text for w in ["blazer", "tailored", "trouser", "knit", "cashmere", "pleat"]):
-                score += 20.0
-            if any(w in text for w in ["sweatpants", "tank", "distressed"]):
-                score -= 50.0
+            if any(w in text for w in ["blazer", "tailored", "trouser", "knit", "cashmere", "pleat", "shirt"]):
+                score += 25.0
+            if any(w in text for w in ["sweatpants", "tank", "distressed", "flip flop"]):
+                score -= 60.0
+        elif is_summer:
+            if any(w in text for w in ["linen", "cotton", "short", "sandal", "sunglass", "lightweight", "slip"]):
+                score += 25.0
+            if any(w in text for w in ["heavy wool", "shearling", "puffer", "down coat"]):
+                score -= 70.0
 
         return score
 
@@ -449,22 +524,45 @@ def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] =
 
     outfit_items = []
 
+    # Priority to pair Tops + Bottoms, or Dress
     if bottoms and tops:
-        outfit_items = [tops[0], bottoms[0]]
-        if outerwear and score_item(outerwear[0]) > 20:
+        best_top = tops[0]
+        top_colors = detect_colors(f"{best_top.brand} {best_top.category} {best_top.description or ''}")
+        
+        # Color harmony with bottom: find a bottom that coordinates with best_top
+        matched_bottom = bottoms[0]
+        if is_monochrome and top_colors:
+            for b in bottoms:
+                b_colors = detect_colors(f"{b.brand} {b.category} {b.description or ''}")
+                if any(c in b_colors for c in top_colors):
+                    matched_bottom = b
+                    break
+
+        outfit_items = [best_top, matched_bottom]
+
+        # Add outerwear if available and appropriate or required
+        outer_threshold = 0.0 if require_outerwear else 18.0
+        if outerwear and score_item(outerwear[0]) >= outer_threshold:
             outfit_items.insert(0, outerwear[0])
+
+        # Add footwear
         if footwear:
             outfit_items.append(footwear[0])
-        if accessories and score_item(accessories[0]) > 15:
+
+        # Add accessories
+        acc_threshold = 0.0 if require_accessories else 12.0
+        if accessories and score_item(accessories[0]) >= acc_threshold:
             outfit_items.append(accessories[0])
 
     elif dresses:
         outfit_items = [dresses[0]]
-        if outerwear and score_item(outerwear[0]) > 20:
+        outer_threshold = 0.0 if require_outerwear else 18.0
+        if outerwear and score_item(outerwear[0]) >= outer_threshold:
             outfit_items.insert(0, outerwear[0])
         if footwear:
             outfit_items.append(footwear[0])
-        if accessories and score_item(accessories[0]) > 15:
+        acc_threshold = 0.0 if require_accessories else 12.0
+        if accessories and score_item(accessories[0]) >= acc_threshold:
             outfit_items.append(accessories[0])
 
     elif tops:
@@ -477,6 +575,8 @@ def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] =
         outfit_items = [bottoms[0]]
         if footwear:
             outfit_items.append(footwear[0])
+        if accessories:
+            outfit_items.append(accessories[0])
     else:
         outfit_items = [items[0]]
 
@@ -485,31 +585,58 @@ def curate_outfit_from_closet(items: List[ClothingItem], prompt: Optional[str] =
     brand_str = " × ".join(brands[:3])
     title = f"{theme}: {brand_str} Package"
 
-    piece_notes = []
+    piece_summaries = []
+    detected_all_fabrics = []
+    detected_all_colors = []
     for p in outfit_items:
         detail = p.description.strip() if p.description else f"{p.brand} {p.category}"
-        piece_notes.append(f"{p.brand} {p.category.lower()} ({detail})")
-    
-    rationale = f"Curated outfit package for {p_raw or theme.lower()}. Styled {', '.join(piece_notes)} to ensure harmony of materials, color palette, and occasion-appropriate formality."
+        piece_summaries.append(f"{p.brand} {p.category.lower()} ({detail})")
+        detected_all_fabrics.extend(detect_fabrics(detail))
+        detected_all_colors.extend(detect_colors(detail))
+
+    detected_all_fabrics = list(dict.fromkeys(detected_all_fabrics))
+    detected_all_colors = list(dict.fromkeys(detected_all_colors))
+
+    fabric_str = ", ".join(detected_all_fabrics[:3]) if detected_all_fabrics else "harmonious textures"
+    color_str = ", ".join(detected_all_colors[:3]) if detected_all_colors else "cohesive palette"
+
+    rationale_parts = [
+        f"Curated {theme} Package featuring {', '.join(piece_summaries)}.",
+        f"Fabric & Color Interplay: Rooted in a {color_str} scheme balancing textures of {fabric_str}."
+    ]
+
+    if inst_raw:
+        rationale_parts.append(f"Stylist Directive: Built according to your instructions ({inst_raw}), harmonizing silhouettes and event formality.")
+
+    unworn_curated = [p.brand for p in outfit_items if p.status == "Unworn"]
+    if unworn_curated:
+        rationale_parts.append(f"Deliverable Focus: Spotlights unworn PR piece(s) from {', '.join(unworn_curated[:2])}.")
+
+    rationale = " ".join(rationale_parts)
     
     return outfit_items, title, theme, rationale
 
 @app.post("/api/outfits/auto-suggest", response_model=OutfitResponse)
 def auto_suggest_outfit(
     prompt: Optional[str] = Query(None, description="Styling occasion or aesthetic prompt"),
+    instructions: Optional[str] = Query(None, description="Specific instructions on how the AI should build the outfit"),
     avatar_id: Optional[uuid.UUID] = Query(None, description="Optional legacy parameter"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Generate an AI curated outfit package from clothing piece descriptions.
-    No image generation model or avatar upload required. Returns immediately.
+    Generate an AI curated outfit package from clothing piece descriptions
+    and styling guidelines/instructions. Returns immediately.
     """
     items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
     if not items:
         raise HTTPException(status_code=400, detail="No clothes found in your closet. Please upload some pieces first.")
 
-    outfit_items, title, occasion, notes = curate_outfit_from_closet(items, prompt)
+    effective_instructions = (instructions or "").strip()
+    if not effective_instructions and current_user.ai_styling_instructions:
+        effective_instructions = current_user.ai_styling_instructions.strip()
+
+    outfit_items, title, occasion, notes = curate_outfit_from_closet(items, prompt, effective_instructions)
 
     new_outfit = Outfit(
         id=uuid.uuid4(),
@@ -1000,6 +1127,8 @@ def update_user_profile(
         current_user.custom_occasions = profile_in.custom_occasions
     if profile_in.status_icons_json is not None:
         current_user.status_icons_json = profile_in.status_icons_json
+    if profile_in.ai_styling_instructions is not None:
+        current_user.ai_styling_instructions = profile_in.ai_styling_instructions
 
     db.commit()
     db.refresh(current_user)

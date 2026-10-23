@@ -49,6 +49,7 @@ export interface AmbassadorProfile {
   status_icons_json?: string;
   custom_occasions?: string;
   board_columns_json?: string;
+  ai_styling_instructions?: string;
 }
 
 export type ColumnType = 'text' | 'url' | 'status' | 'image' | 'outfits' | 'clothing' | 'date';

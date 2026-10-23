@@ -616,10 +616,11 @@ export const apiService = {
     }
   },
 
-  async autoSuggestOutfit(prompt?: string): Promise<OutfitSuggestion | null> {
+  async autoSuggestOutfit(prompt?: string, instructions?: string): Promise<OutfitSuggestion | null> {
     try {
       const params = new URLSearchParams();
       if (prompt && prompt.trim()) params.set('prompt', prompt.trim());
+      if (instructions && instructions.trim()) params.set('instructions', instructions.trim());
       const queryStr = params.toString() ? `?${params.toString()}` : '';
       const url = `/api/outfits/auto-suggest${queryStr}`;
       const res = await fetch(url, {

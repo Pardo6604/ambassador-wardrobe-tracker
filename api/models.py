@@ -66,6 +66,7 @@ class User(Base):
     status_icons_json = Column(String(1024), nullable=True)
     custom_occasions = Column(String(1024), nullable=True)
     board_columns_json = Column(String(4096), nullable=True)
+    ai_styling_instructions = Column(String(2048), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

@@ -30,6 +30,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [handle, setHandle] = useState(profile.handle || '');
   const [bio, setBio] = useState(profile.bio || 'Fashion & Streetwear Ambassador | Stockholm & NYC');
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url);
+  const [aiStylingInstructions, setAiStylingInstructions] = useState(profile.ai_styling_instructions || '');
 
   React.useEffect(() => {
     if (isOpen) {
@@ -38,6 +39,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       setHandle(profile.handle || '');
       setBio(profile.bio || 'Fashion & Streetwear Ambassador | Stockholm & NYC');
       setAvatarUrl(profile.avatar_url);
+      setAiStylingInstructions(profile.ai_styling_instructions || '');
     }
   }, [isOpen, profile]);
 
@@ -201,6 +203,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         handle: handle.trim(),
         bio: bio.trim(),
         avatar_url: avatarUrl,
+        ai_styling_instructions: aiStylingInstructions.trim(),
       });
       setProfileSuccess(true);
       setTimeout(() => setProfileSuccess(false), 2500);
@@ -436,6 +439,67 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   placeholder="Fashion niche, location, represented brands..."
                   className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 resize-none"
                 />
+              </div>
+
+              {/* Default AI Styling Instructions & Guidelines */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    Default AI Stylist Guidelines & Rules
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Used for all outfit suggestions</span>
+                </div>
+                <p className="text-[11px] text-neutral-500 mb-2">
+                  Instruct the AI on your styling DNA (e.g. silhouette proportions, color harmonies, preferred footwear, or layering guidelines).
+                </p>
+                <textarea
+                  rows={2}
+                  value={aiStylingInstructions}
+                  onChange={(e) => setAiStylingInstructions(e.target.value)}
+                  placeholder="e.g. Monochrome palette only, always include outerwear, no sneakers with tailored pants..."
+                  className="w-full px-3.5 py-2 text-xs sm:text-sm bg-white border border-neutral-200 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 resize-none mb-2"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Monochrome palette',
+                    'Always include accessories',
+                    'Layer with outerwear',
+                    'No sneakers',
+                    'Warm earth tones',
+                    'Prioritize unworn PR',
+                  ].map((rule) => {
+                    const active = aiStylingInstructions.toLowerCase().includes(rule.toLowerCase());
+                    return (
+                      <button
+                        key={rule}
+                        type="button"
+                        onClick={() => {
+                          const trimmed = aiStylingInstructions.trim();
+                          if (!trimmed) {
+                            setAiStylingInstructions(rule);
+                          } else if (active) {
+                            const filtered = trimmed
+                              .split(',')
+                              .map(s => s.trim())
+                              .filter(s => s.toLowerCase() !== rule.toLowerCase());
+                            setAiStylingInstructions(filtered.join(', '));
+                          } else {
+                            setAiStylingInstructions(`${trimmed}, ${rule}`);
+                          }
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-all ${
+                          active
+                            ? 'bg-neutral-900 text-white border-neutral-900 font-medium'
+                            : 'bg-neutral-50 text-neutral-600 border-neutral-200 hover:border-neutral-400'
+                        }`}
+                      >
+                        {active ? '✓ ' : '+ '}
+                        {rule}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
 

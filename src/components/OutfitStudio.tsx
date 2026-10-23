@@ -176,11 +176,11 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
 
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
 
-  const handleAutoSuggest = async (prompt?: string) => {
+  const handleAutoSuggest = async (prompt?: string, instructions?: string) => {
     setIsAutoSuggesting(true);
     setIsSuggestModalOpen(false);
     try {
-      const newOutfit = await apiService.autoSuggestOutfit(prompt);
+      const newOutfit = await apiService.autoSuggestOutfit(prompt, instructions);
       if (newOutfit) {
         if (onOutfitGenerated) {
           onOutfitGenerated(newOutfit);
@@ -327,18 +327,27 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-neutral-600 mt-0.5">
-                Curated packages suggested by AI analyzing your clothes' materials, cuts, and color harmonies.
+                Curated packages suggested by AI analyzing your clothes' materials, cuts, color harmonies, and styling instructions.
               </p>
+              {profile.ai_styling_instructions && (
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-900 bg-amber-100/80 border border-amber-200 px-2.5 py-1 rounded-lg w-fit">
+                  <SlidersHorizontal className="w-3 h-3 text-amber-700 shrink-0" />
+                  <span className="font-semibold shrink-0">Active AI Rules:</span>
+                  <span className="truncate max-w-xs sm:max-w-md">{profile.ai_styling_instructions}</span>
+                </div>
+              )}
             </div>
           </div>
-          <button
-            onClick={() => setIsSuggestModalOpen(true)}
-            disabled={isAutoSuggesting}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer shrink-0 disabled:opacity-50"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>{isAutoSuggesting ? 'Curating...' : 'Curate New Suggestion'}</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsSuggestModalOpen(true)}
+              disabled={isAutoSuggesting}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{isAutoSuggesting ? 'Curating...' : 'Curate New Suggestion'}</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -479,6 +488,10 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
         onClose={() => setIsSuggestModalOpen(false)}
         onGenerate={handleAutoSuggest}
         isGenerating={isAutoSuggesting}
+        defaultInstructions={profile.ai_styling_instructions || ''}
+        onSaveDefaultInstructions={async (inst) => {
+          await onUpdateProfile({ ...profile, ai_styling_instructions: inst });
+        }}
       />
 
       {/* AI Try-On Modal */}

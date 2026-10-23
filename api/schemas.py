@@ -92,6 +92,7 @@ class UserProfileUpdate(BaseModel):
     custom_statuses: Optional[str] = None
     status_icons_json: Optional[str] = None
     custom_occasions: Optional[str] = None
+    ai_styling_instructions: Optional[str] = None
 
 
 class UserPasswordChange(BaseModel):
@@ -125,6 +126,7 @@ class UserResponse(BaseModel):
     status_icons_json: Optional[str] = None
     custom_occasions: Optional[str] = None
     board_columns_json: Optional[str] = None
+    ai_styling_instructions: Optional[str] = None
     created_at: datetime
 
     class Config:
