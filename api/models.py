@@ -75,6 +75,8 @@ class User(Base):
     campaign_tasks = relationship("CampaignTask", back_populates="user", cascade="all, delete-orphan")
     campaign_boards = relationship("CampaignBoard", back_populates="user", cascade="all, delete-orphan")
     avatars = relationship("TryonAvatar", back_populates="user", cascade="all, delete-orphan")
+    reports = relationship("CustomReport", back_populates="user", cascade="all, delete-orphan")
+    dashboards = relationship("CustomDashboard", back_populates="user", cascade="all, delete-orphan")
 
 class TryonAvatar(Base):
     __tablename__ = "tryon_avatars"
@@ -145,4 +147,37 @@ class Outfit(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="outfits")
+
+
+class CustomReport(Base):
+    __tablename__ = "custom_reports"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(150), nullable=False)
+    description = Column(String(500), nullable=True)
+    report_type = Column(String(50), default="summary", nullable=False)  # tabular, summary, matrix
+    dataset = Column(String(50), default="wardrobe", nullable=False)  # wardrobe, outfits, campaigns
+    config_json = Column(String(8192), default="{}", nullable=False)  # columns, groupings, filters, sort, chart_type
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="reports")
+
+
+class CustomDashboard(Base):
+    __tablename__ = "custom_dashboards"
+
+    id = Column(GUID, primary_key=True, default=uuid.uuid4)
+    user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(150), nullable=False)
+    description = Column(String(500), nullable=True)
+    is_default = Column(Boolean, default=False, nullable=False)
+    share_token = Column(String(64), unique=True, index=True, nullable=True)
+    is_public = Column(Boolean, default=False, nullable=False)
+    layout_json = Column(String(16384), default="[]", nullable=False)  # array of widgets
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="dashboards")
 

@@ -15,12 +15,13 @@ import { OutfitStudio } from './OutfitStudio';
 import { AccountModal } from './AccountModal';
 import { AuthScreen } from './AuthScreen';
 import { CampaignBoard } from './CampaignBoard';
+import { AnalyticsHub } from './analytics/AnalyticsHub';
 import { ErrorBoundary } from './ErrorBoundary';
 import { Plus, RotateCcw, PackageOpen, Sparkles, Shirt } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [currentTab, setCurrentTab] = useState<'closet' | 'outfits' | 'campaigns'>('closet');
+  const [currentTab, setCurrentTab] = useState<'closet' | 'outfits' | 'campaigns' | 'analytics'>('closet');
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [outfits, setOutfits] = useState<OutfitSuggestion[]>([]);
   const [profile, setProfile] = useState<AmbassadorProfile>(apiService.getProfile());
@@ -255,20 +256,37 @@ export const Dashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6">
           <div>
             <h1 className="text-3xl sm:text-4xl font-semibold tracking-normal text-neutral-900 font-sans">
-              {currentTab === 'closet' ? 'Virtual Closet' : currentTab === 'outfits' ? 'Outfits' : 'Campaigns Board'}
+              {currentTab === 'closet'
+                ? 'Virtual Closet'
+                : currentTab === 'outfits'
+                ? 'Outfits'
+                : currentTab === 'campaigns'
+                ? 'Campaigns Board'
+                : 'Analytics & Reports'}
             </h1>
             <p className="text-sm text-neutral-500 mt-1">
               {currentTab === 'closet'
                 ? 'Track seeded PR packages, worn campaign looks, and showroom returns.'
                 : currentTab === 'outfits'
                 ? 'Manage your styled looks, explore AI outfit suggestions, and track ambassador fit pics.'
-                : 'Track brand deliverables, campaign deadlines, and linked outfits.'}
+                : currentTab === 'campaigns'
+                ? 'Track brand deliverables, campaign deadlines, and linked outfits.'
+                : 'Executive dashboards, customizable reports, and fashion gifting intelligence.'}
             </p>
           </div>
         </div>
 
         {/* Tab Content */}
-        {currentTab === 'campaigns' ? (
+        {currentTab === 'analytics' ? (
+          <ErrorBoundary>
+            <AnalyticsHub
+              items={items}
+              outfits={outfits}
+              allCategories={allCategories}
+              allStatuses={allStatuses}
+            />
+          </ErrorBoundary>
+        ) : currentTab === 'campaigns' ? (
           <ErrorBoundary>
             <CampaignBoard
               profile={profile}

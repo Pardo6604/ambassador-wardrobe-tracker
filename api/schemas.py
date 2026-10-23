@@ -195,3 +195,85 @@ class CampaignTaskResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CustomReportCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = None
+    report_type: str = "summary"  # tabular, summary, matrix
+    dataset: str = "wardrobe"  # wardrobe, outfits, campaigns
+    config_json: str = "{}"
+
+
+class CustomReportUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    report_type: Optional[str] = None
+    dataset: Optional[str] = None
+    config_json: Optional[str] = None
+
+
+class CustomReportResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    title: str
+    description: Optional[str] = None
+    report_type: str
+    dataset: str
+    config_json: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CustomDashboardCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = None
+    is_default: bool = False
+    layout_json: str = "[]"
+
+
+class CustomDashboardUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    is_default: Optional[bool] = None
+    is_public: Optional[bool] = None
+    share_token: Optional[str] = None
+    layout_json: Optional[str] = None
+
+
+class CustomDashboardResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    title: str
+    description: Optional[str] = None
+    is_default: bool
+    share_token: Optional[str] = None
+    is_public: bool
+    layout_json: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedDashboardResponse(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: Optional[str] = None
+    ambassador_name: str
+    ambassador_handle: Optional[str] = None
+    ambassador_avatar: Optional[str] = None
+    layout_json: str
+    stats: dict
+    items_count: int
+    outfits_count: int
+    updated_at: datetime
+
+
+class AIGenerateAnalyticsRequest(BaseModel):
+    prompt: str = Field(..., min_length=2)
+    target_type: str = "auto"  # "dashboard", "report", or "auto"

@@ -1,10 +1,10 @@
 import React from 'react';
 import { ItemStatus, AmbassadorProfile } from '../types';
-import { LayoutGrid, Sparkles, Plus, Shirt, User, Calendar } from 'lucide-react';
+import { LayoutGrid, Sparkles, Plus, Shirt, User, Calendar, BarChart3 } from 'lucide-react';
 
 interface MobileNavProps {
-  currentTab: 'closet' | 'outfits' | 'campaigns';
-  onSelectTab: (tab: 'closet' | 'outfits' | 'campaigns') => void;
+  currentTab: 'closet' | 'outfits' | 'campaigns' | 'analytics';
+  onSelectTab: (tab: 'closet' | 'outfits' | 'campaigns' | 'analytics') => void;
   activeStatus: ItemStatus | 'All';
   onSelectStatus: (status: ItemStatus | 'All') => void;
   onOpenUpload: () => void;
@@ -27,7 +27,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
 }) => {
   return (
     <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FAF9F6]/95 backdrop-blur-md border-t border-neutral-200/80 px-1 py-1.5 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
-      <div className="grid grid-cols-5 items-center max-w-md mx-auto h-14">
+      <div className="grid grid-cols-6 items-center max-w-md mx-auto h-14">
         {/* Tab 1: Wardrobe Closet */}
         <button
           onClick={() => {
@@ -68,14 +68,22 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         >
           <Sparkles className="w-5 h-5 stroke-[2] text-amber-500" />
           <span className="text-[9.5px] tracking-tight mt-0.5">Outfits</span>
-          {outfitsCount > 0 && (
-            <span className="absolute top-1 right-2 w-3.5 h-3.5 bg-neutral-900 text-white rounded-full text-[8.5px] font-bold flex items-center justify-center tabular-nums">
-              {outfitsCount}
-            </span>
-          )}
         </button>
 
-        {/* Tab 4: Add New */}
+        {/* Tab 4: Analytics */}
+        <button
+          onClick={() => onSelectTab('analytics')}
+          className={`relative flex flex-col items-center justify-center h-full min-h-[44px] cursor-pointer transition-colors ${
+            currentTab === 'analytics'
+              ? 'text-neutral-900 font-semibold'
+              : 'text-neutral-400 hover:text-neutral-700'
+          }`}
+        >
+          <BarChart3 className="w-5 h-5 stroke-[2]" />
+          <span className="text-[9.5px] tracking-tight mt-0.5">Stats</span>
+        </button>
+
+        {/* Tab 5: Add New */}
         <button
           onClick={onOpenUpload}
           className="flex flex-col items-center justify-center h-full min-h-[44px] cursor-pointer text-neutral-900 active:scale-95 transition-transform"
@@ -86,7 +94,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           <span className="text-[9.5px] tracking-tight mt-0.5 font-medium">Add</span>
         </button>
 
-        {/* Tab 5: Account */}
+        {/* Tab 6: Account */}
         <button
           onClick={onOpenAccount}
           className="flex flex-col items-center justify-center h-full min-h-[44px] cursor-pointer text-neutral-500 hover:text-neutral-900 active:scale-95 transition-transform"
@@ -108,3 +116,4 @@ export const MobileNav: React.FC<MobileNavProps> = ({
     </nav>
   );
 };
+

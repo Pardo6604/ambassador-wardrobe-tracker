@@ -1,10 +1,10 @@
 import React from 'react';
-import { Plus, Sparkles, Shirt, User, Calendar } from 'lucide-react';
+import { Plus, Sparkles, Shirt, User, Calendar, BarChart3 } from 'lucide-react';
 import { AmbassadorProfile } from '../types';
 
 interface HeaderProps {
-  currentTab: 'closet' | 'outfits' | 'campaigns';
-  onSelectTab: (tab: 'closet' | 'outfits' | 'campaigns') => void;
+  currentTab: 'closet' | 'outfits' | 'campaigns' | 'analytics';
+  onSelectTab: (tab: 'closet' | 'outfits' | 'campaigns' | 'analytics') => void;
   onOpenUpload: () => void;
   onOpenAccount: () => void;
   profile: AmbassadorProfile;
@@ -39,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Zone 2: Navigation Switcher Tabs (Closet vs Outfits vs Campaigns) */}
+        {/* Zone 2: Navigation Switcher Tabs (Closet vs Outfits vs Campaigns vs Analytics) */}
         <nav className="flex items-center p-1 bg-neutral-200/60 rounded-xl">
           <button
             onClick={() => onSelectTab('closet')}
@@ -81,6 +81,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>Campaigns</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('analytics')}
+            className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              currentTab === 'analytics'
+                ? 'bg-white text-neutral-900 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-neutral-700" />
+            <span>Analytics</span>
           </button>
         </nav>
 

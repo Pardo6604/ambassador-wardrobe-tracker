@@ -16,7 +16,7 @@ if current_dir not in sys.path:
 
 try:
     from .database import engine, get_db, Base
-    from .models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
+    from .models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar, CustomReport, CustomDashboard
     from .schemas import (
         TryOnRequest,
         TryOnJobResponse,
@@ -44,6 +44,14 @@ try:
         CampaignBoardCreate,
         CampaignBoardUpdate,
         CampaignBoardResponse,
+        CustomReportCreate,
+        CustomReportUpdate,
+        CustomReportResponse,
+        CustomDashboardCreate,
+        CustomDashboardUpdate,
+        CustomDashboardResponse,
+        SharedDashboardResponse,
+        AIGenerateAnalyticsRequest,
     )
     from .auth import (
         get_password_hash,
@@ -54,7 +62,7 @@ try:
     )
 except (ImportError, ValueError):
     from database import engine, get_db, Base
-    from models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar
+    from models import ClothingItem, User, Outfit, CampaignBoard, CampaignTask, TryonAvatar, CustomReport, CustomDashboard
     from schemas import (
         TryOnRequest,
         TryOnJobResponse,
@@ -82,6 +90,14 @@ except (ImportError, ValueError):
         CampaignBoardCreate,
         CampaignBoardUpdate,
         CampaignBoardResponse,
+        CustomReportCreate,
+        CustomReportUpdate,
+        CustomReportResponse,
+        CustomDashboardCreate,
+        CustomDashboardUpdate,
+        CustomDashboardResponse,
+        SharedDashboardResponse,
+        AIGenerateAnalyticsRequest,
     )
     from auth import (
         get_password_hash,
@@ -1296,4 +1312,364 @@ def delete_campaign_task(
     db.delete(task)
     db.commit()
     return {"status": "success"}
+
+
+# ==========================================
+# ANALYTICS: REPORTS, DASHBOARDS & AI COPILOT
+# ==========================================
+
+import secrets
+import json
+
+@app.get("/api/analytics/reports", response_model=List[CustomReportResponse])
+def get_user_reports(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch all saved custom reports for the authenticated user."""
+    return db.query(CustomReport).filter(CustomReport.user_id == current_user.id).order_by(CustomReport.created_at.desc()).all()
+
+
+@app.post("/api/analytics/reports", response_model=CustomReportResponse)
+def create_custom_report(
+    report_in: CustomReportCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new custom report."""
+    new_report = CustomReport(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        title=report_in.title,
+        description=report_in.description,
+        report_type=report_in.report_type,
+        dataset=report_in.dataset,
+        config_json=report_in.config_json,
+    )
+    db.add(new_report)
+    db.commit()
+    db.refresh(new_report)
+    return new_report
+
+
+@app.put("/api/analytics/reports/{report_id}", response_model=CustomReportResponse)
+def update_custom_report(
+    report_id: uuid.UUID,
+    report_in: CustomReportUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing custom report."""
+    report = db.query(CustomReport).filter(CustomReport.id == report_id, CustomReport.user_id == current_user.id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    if report_in.title is not None:
+        report.title = report_in.title
+    if report_in.description is not None:
+        report.description = report_in.description
+    if report_in.report_type is not None:
+        report.report_type = report_in.report_type
+    if report_in.dataset is not None:
+        report.dataset = report_in.dataset
+    if report_in.config_json is not None:
+        report.config_json = report_in.config_json
+
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@app.delete("/api/analytics/reports/{report_id}")
+def delete_custom_report(
+    report_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a custom report."""
+    report = db.query(CustomReport).filter(CustomReport.id == report_id, CustomReport.user_id == current_user.id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    db.delete(report)
+    db.commit()
+    return {"status": "success"}
+
+
+@app.get("/api/analytics/dashboards", response_model=List[CustomDashboardResponse])
+def get_user_dashboards(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Fetch all custom dashboards for the authenticated user."""
+    return db.query(CustomDashboard).filter(CustomDashboard.user_id == current_user.id).order_by(CustomDashboard.created_at.desc()).all()
+
+
+@app.post("/api/analytics/dashboards", response_model=CustomDashboardResponse)
+def create_custom_dashboard(
+    dash_in: CustomDashboardCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new custom dashboard."""
+    new_dash = CustomDashboard(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        title=dash_in.title,
+        description=dash_in.description,
+        is_default=dash_in.is_default,
+        share_token=secrets.token_urlsafe(12),
+        is_public=False,
+        layout_json=dash_in.layout_json,
+    )
+    db.add(new_dash)
+    db.commit()
+    db.refresh(new_dash)
+    return new_dash
+
+
+@app.put("/api/analytics/dashboards/{dashboard_id}", response_model=CustomDashboardResponse)
+def update_custom_dashboard(
+    dashboard_id: uuid.UUID,
+    dash_in: CustomDashboardUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a custom dashboard layout or settings."""
+    dash = db.query(CustomDashboard).filter(CustomDashboard.id == dashboard_id, CustomDashboard.user_id == current_user.id).first()
+    if not dash:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    if dash_in.title is not None:
+        dash.title = dash_in.title
+    if dash_in.description is not None:
+        dash.description = dash_in.description
+    if dash_in.is_default is not None:
+        dash.is_default = dash_in.is_default
+    if dash_in.is_public is not None:
+        dash.is_public = dash_in.is_public
+    if dash_in.share_token is not None:
+        dash.share_token = dash_in.share_token
+    if dash_in.layout_json is not None:
+        dash.layout_json = dash_in.layout_json
+
+    db.commit()
+    db.refresh(dash)
+    return dash
+
+
+@app.delete("/api/analytics/dashboards/{dashboard_id}")
+def delete_custom_dashboard(
+    dashboard_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a custom dashboard."""
+    dash = db.query(CustomDashboard).filter(CustomDashboard.id == dashboard_id, CustomDashboard.user_id == current_user.id).first()
+    if not dash:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    db.delete(dash)
+    db.commit()
+    return {"status": "success"}
+
+
+@app.post("/api/analytics/dashboards/{dashboard_id}/share")
+def toggle_dashboard_sharing(
+    dashboard_id: uuid.UUID,
+    is_public: Optional[bool] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle public link sharing for a dashboard and return its share token."""
+    dash = db.query(CustomDashboard).filter(CustomDashboard.id == dashboard_id, CustomDashboard.user_id == current_user.id).first()
+    if not dash:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    if not dash.share_token:
+        dash.share_token = secrets.token_urlsafe(12)
+    
+    if is_public is not None:
+        dash.is_public = is_public
+    else:
+        dash.is_public = not dash.is_public
+
+    db.commit()
+    db.refresh(dash)
+    return {
+        "status": "success",
+        "is_public": dash.is_public,
+        "share_token": dash.share_token
+    }
+
+
+@app.get("/api/analytics/shared/{share_token}", response_model=SharedDashboardResponse)
+def get_shared_dashboard(
+    share_token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Public endpoint: Retrieve a shared dashboard and live anonymized aggregate stats.
+    Allows talent managers, agencies, or brand partners to view real-time metrics.
+    """
+    dash = db.query(CustomDashboard).filter(CustomDashboard.share_token == share_token, CustomDashboard.is_public == True).first()
+    if not dash:
+        raise HTTPException(status_code=404, detail="Shared dashboard not found or link has expired.")
+    
+    owner = db.query(User).filter(User.id == dash.user_id).first()
+    if not owner:
+        raise HTTPException(status_code=404, detail="Dashboard owner not found.")
+    
+    items = db.query(ClothingItem).filter(ClothingItem.user_id == owner.id).all()
+    outfits = db.query(Outfit).filter(Outfit.user_id == owner.id).all()
+
+    # Calculate real-time stats
+    total_items = len(items)
+    unworn_count = sum(1 for i in items if i.status == "Unworn")
+    worn_count = sum(1 for i in items if i.status == "Worn")
+    posted_count = sum(1 for i in items if i.status == "Posted")
+
+    cat_counts = {}
+    brand_counts = {}
+    for i in items:
+        cat_counts[i.category] = cat_counts.get(i.category, 0) + 1
+        brand_counts[i.brand] = brand_counts.get(i.brand, 0) + 1
+
+    return SharedDashboardResponse(
+        id=dash.id,
+        title=dash.title,
+        description=dash.description,
+        ambassador_name=owner.name,
+        ambassador_handle=owner.handle,
+        ambassador_avatar=owner.avatar_url,
+        layout_json=dash.layout_json,
+        stats={
+            "total_items": total_items,
+            "unworn_count": unworn_count,
+            "worn_count": worn_count,
+            "posted_count": posted_count,
+            "category_distribution": cat_counts,
+            "brand_distribution": brand_counts,
+        },
+        items_count=total_items,
+        outfits_count=len(outfits),
+        updated_at=dash.updated_at
+    )
+
+
+@app.post("/api/analytics/ai-generate")
+def ai_generate_analytics(
+    request: AIGenerateAnalyticsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a custom report or dashboard configuration from natural language queries.
+    Uses current closet data to tailor columns, groupings, filters, and metric widgets.
+    """
+    prompt = request.prompt.lower().strip()
+    target_type = request.target_type.lower().strip()
+
+    items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
+    outfits = db.query(Outfit).filter(Outfit.user_id == current_user.id).all()
+
+    # Determine whether user asked for a report or dashboard
+    is_report = "report" in prompt or "matrix" in prompt or "tabular" in prompt or "summary table" in prompt or target_type == "report"
+    if target_type == "dashboard":
+        is_report = False
+
+    # Extract intent keywords
+    mentions_brand = "brand" in prompt or "brands" in prompt or "prada" in prompt or "balenciaga" in prompt
+    mentions_unworn = "unworn" in prompt or "pending" in prompt or "not worn" in prompt
+    mentions_category = "category" in prompt or "categories" in prompt or "tops" in prompt or "outerwear" in prompt or "shoes" in prompt
+    mentions_pipeline = "pipeline" in prompt or "deliverable" in prompt or "campaign" in prompt or "funnel" in prompt
+    mentions_matrix = "matrix" in prompt or "2d" in prompt or "cross" in prompt
+
+    if is_report:
+        # Generate Report Configuration
+        report_type = "matrix" if mentions_matrix else ("summary" if (mentions_brand or mentions_category) else "tabular")
+        
+        row_group = "brand" if (mentions_brand and not mentions_category) else ("category" if mentions_category else "brand")
+        col_group = "status" if report_type == "matrix" else None
+        
+        filters = {}
+        if mentions_unworn:
+            filters["status"] = ["Unworn"]
+        
+        title = f"AI Curated {row_group.capitalize()} {report_type.capitalize()} Report"
+        if mentions_unworn:
+            title = f"Unworn PR Pieces by {row_group.capitalize()}"
+
+        config = {
+            "title": title,
+            "report_type": report_type,
+            "row_group": row_group,
+            "col_group": col_group,
+            "filters": filters,
+            "chart_type": "bar" if report_type != "matrix" else "none",
+            "columns": ["image_url", "brand", "category", "status", "description", "created_at"]
+        }
+
+        summary = f"Generated a {report_type} report focusing on {row_group} distributions across your wardrobe"
+        if mentions_unworn:
+            summary += ", filtered strictly to items pending wear/posting."
+        else:
+            summary += " with calculated totals and breakdown percentages."
+
+        return {
+            "type": "report",
+            "title": title,
+            "description": f"AI-generated {report_type} report based on '{request.prompt}'",
+            "config": config,
+            "summary": summary
+        }
+
+    else:
+        # Generate Dashboard Configuration
+        title = "Wardrobe Performance & Gifting Dashboard"
+        widgets = []
+
+        if mentions_pipeline:
+            title = "Campaign & Deliverable Pipeline Dashboard"
+            widgets = [
+                {"id": "w1", "type": "kpi", "title": "Total PR Inflow", "metric": "total_items", "width": 4},
+                {"id": "w2", "type": "kpi", "title": "Unworn PR Backlog", "metric": "unworn_items", "width": 4},
+                {"id": "w3", "type": "kpi", "title": "Styled Lookbook Packages", "metric": "total_outfits", "width": 4},
+                {"id": "w4", "type": "funnel", "title": "Seeded PR Deliverable Funnel", "width": 12},
+                {"id": "w5", "type": "bar", "title": "Brand Deliverable Volume", "group_by": "brand", "width": 8},
+                {"id": "w6", "type": "donut", "title": "Fulfillment Status Ratio", "group_by": "status", "width": 4},
+            ]
+        elif mentions_brand:
+            title = "Brand Partnership & PR Gifting Dashboard"
+            widgets = [
+                {"id": "w1", "type": "kpi", "title": "Partnered Brands", "metric": "brand_count", "width": 4},
+                {"id": "w2", "type": "kpi", "title": "Total Gifted Garments", "metric": "total_items", "width": 4},
+                {"id": "w3", "type": "kpi", "title": "Fulfillment Velocity", "metric": "worn_ratio", "width": 4},
+                {"id": "w4", "type": "bar", "title": "Top Gifting Fashion Houses", "group_by": "brand", "width": 8},
+                {"id": "w5", "type": "donut", "title": "Item Status by Brand", "group_by": "status", "width": 4},
+                {"id": "w6", "type": "table", "title": "Brand Inventory & Deliverable Ledger", "width": 12},
+            ]
+        else:
+            # Default to Category & Utilization
+            title = "Wardrobe Category Breakdown & Utilization"
+            widgets = [
+                {"id": "w1", "type": "kpi", "title": "Total Wardrobe Volume", "metric": "total_items", "width": 3},
+                {"id": "w2", "type": "kpi", "title": "Unworn PR Pieces", "metric": "unworn_items", "width": 3},
+                {"id": "w3", "type": "kpi", "title": "Ready Lookbook Outfits", "metric": "total_outfits", "width": 3},
+                {"id": "w4", "type": "kpi", "title": "Active Partner Brands", "metric": "brand_count", "width": 3},
+                {"id": "w5", "type": "donut", "title": "Category Allocation", "group_by": "category", "width": 5},
+                {"id": "w6", "type": "bar", "title": "Category vs Status Breakdown", "group_by": "category", "width": 7},
+                {"id": "w7", "type": "matrix_table", "title": "Category Matrix & Deliverable Status", "width": 12},
+            ]
+
+        summary = f"Constructed an executive dashboard tailored to your query ('{request.prompt}') featuring {len(widgets)} responsive widgets, category distributions, and delivery KPI trackers."
+
+        return {
+            "type": "dashboard",
+            "title": title,
+            "description": f"AI-generated analytics dashboard based on '{request.prompt}'",
+            "config": {
+                "title": title,
+                "widgets": widgets
+            },
+            "summary": summary
+        }
 

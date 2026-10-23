@@ -1,4 +1,4 @@
-import { ClothingItem, Category, ItemStatus, OutfitSuggestion, AmbassadorProfile } from '../types';
+import { ClothingItem, Category, ItemStatus, OutfitSuggestion, AmbassadorProfile, CustomReport, CustomDashboard, SharedDashboardData, AIGeneratedAnalyticsResult } from '../types';
 import { INITIAL_CLOTHING_ITEMS, INITIAL_OUTFITS } from '../data/seedData';
 
 
@@ -871,5 +871,215 @@ export const apiService = {
     } catch {
       console.warn("Failed to delete campaign task");
     }
+  },
+
+  // ==========================================
+  // ANALYTICS & REPORTS SERVICE
+  // ==========================================
+
+  async getReports(): Promise<CustomReport[]> {
+    try {
+      const res = await fetch('/api/analytics/reports', { headers: getAuthHeader() });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to fetch reports from backend", e);
+    }
+    const local = localStorage.getItem('closet_pr_custom_reports_v1');
+    return local ? JSON.parse(local) : [];
+  },
+
+  async createReport(report: { title: string; description?: string; report_type: string; dataset: string; config_json: string }): Promise<CustomReport | null> {
+    try {
+      const res = await fetch('/api/analytics/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(report),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const existing = await this.getReports();
+        localStorage.setItem('closet_pr_custom_reports_v1', JSON.stringify([data, ...existing]));
+        return data;
+      }
+    } catch (e) {
+      console.warn("Failed to create report on server", e);
+    }
+    const fallback: CustomReport = {
+      id: `local-rep-${Date.now()}`,
+      title: report.title,
+      description: report.description,
+      report_type: report.report_type as any,
+      dataset: report.dataset as any,
+      config_json: report.config_json,
+      created_at: new Date().toISOString(),
+    };
+    const existing = await this.getReports();
+    localStorage.setItem('closet_pr_custom_reports_v1', JSON.stringify([fallback, ...existing]));
+    return fallback;
+  },
+
+  async updateReport(id: string, updates: Partial<CustomReport>): Promise<CustomReport | null> {
+    try {
+      const res = await fetch(`/api/analytics/reports/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to update report on server", e);
+    }
+    return null;
+  },
+
+  async deleteReport(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/analytics/reports/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(),
+      });
+      if (res.ok) {
+        const existing = await this.getReports();
+        localStorage.setItem('closet_pr_custom_reports_v1', JSON.stringify(existing.filter(r => r.id !== id)));
+        return true;
+      }
+    } catch (e) {
+      console.warn("Failed to delete report on server", e);
+    }
+    const existing = await this.getReports();
+    localStorage.setItem('closet_pr_custom_reports_v1', JSON.stringify(existing.filter(r => r.id !== id)));
+    return true;
+  },
+
+  // ==========================================
+  // DASHBOARDS SERVICE
+  // ==========================================
+
+  async getDashboards(): Promise<CustomDashboard[]> {
+    try {
+      const res = await fetch('/api/analytics/dashboards', { headers: getAuthHeader() });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to fetch dashboards from backend", e);
+    }
+    const local = localStorage.getItem('closet_pr_custom_dashboards_v1');
+    return local ? JSON.parse(local) : [];
+  },
+
+  async createDashboard(dash: { title: string; description?: string; is_default?: boolean; layout_json: string }): Promise<CustomDashboard | null> {
+    try {
+      const res = await fetch('/api/analytics/dashboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(dash),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const existing = await this.getDashboards();
+        localStorage.setItem('closet_pr_custom_dashboards_v1', JSON.stringify([data, ...existing]));
+        return data;
+      }
+    } catch (e) {
+      console.warn("Failed to create dashboard on server", e);
+    }
+    const fallback: CustomDashboard = {
+      id: `local-dash-${Date.now()}`,
+      title: dash.title,
+      description: dash.description,
+      is_default: dash.is_default,
+      share_token: `share-${Math.random().toString(36).substring(2, 10)}`,
+      is_public: false,
+      layout_json: dash.layout_json,
+      created_at: new Date().toISOString(),
+    };
+    const existing = await this.getDashboards();
+    localStorage.setItem('closet_pr_custom_dashboards_v1', JSON.stringify([fallback, ...existing]));
+    return fallback;
+  },
+
+  async updateDashboard(id: string, updates: Partial<CustomDashboard>): Promise<CustomDashboard | null> {
+    try {
+      const res = await fetch(`/api/analytics/dashboards/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify(updates),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to update dashboard on server", e);
+    }
+    return null;
+  },
+
+  async deleteDashboard(id: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/analytics/dashboards/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeader(),
+      });
+      if (res.ok) {
+        const existing = await this.getDashboards();
+        localStorage.setItem('closet_pr_custom_dashboards_v1', JSON.stringify(existing.filter(d => d.id !== id)));
+        return true;
+      }
+    } catch (e) {
+      console.warn("Failed to delete dashboard on server", e);
+    }
+    const existing = await this.getDashboards();
+    localStorage.setItem('closet_pr_custom_dashboards_v1', JSON.stringify(existing.filter(d => d.id !== id)));
+    return true;
+  },
+
+  async toggleDashboardShare(id: string, is_public?: boolean): Promise<{ is_public: boolean; share_token: string } | null> {
+    try {
+      const queryStr = is_public !== undefined ? `?is_public=${is_public}` : '';
+      const res = await fetch(`/api/analytics/dashboards/${id}/share${queryStr}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to toggle dashboard share", e);
+    }
+    return null;
+  },
+
+  async getSharedDashboard(share_token: string): Promise<SharedDashboardData | null> {
+    try {
+      const res = await fetch(`/api/analytics/shared/${encodeURIComponent(share_token)}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to fetch shared dashboard", e);
+    }
+    return null;
+  },
+
+  async aiGenerateAnalytics(prompt: string, target_type: 'auto' | 'dashboard' | 'report' = 'auto'): Promise<AIGeneratedAnalyticsResult | null> {
+    try {
+      const res = await fetch('/api/analytics/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+        body: JSON.stringify({ prompt, target_type }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Failed to run AI analytics generation", e);
+    }
+    return null;
   }
 };
+
