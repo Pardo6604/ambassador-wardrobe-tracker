@@ -125,7 +125,7 @@ class ClothingItem(Base):
     category = Column(String(50), nullable=False, index=True)  # Tops, Bottoms, Outerwear, Footwear, Accessories
     brand = Column(String(100), nullable=False, index=True)
     status = Column(String(50), nullable=True, default="Unworn", index=True)  # Unworn, Worn, Posted, Needs Returning
-    description = Column(String(2048), nullable=True)  # Color, material, aesthetic, styling details
+    description = Column(String, nullable=True)  # Color, material, aesthetic, styling details
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
@@ -141,8 +141,8 @@ class Outfit(Base):
     occasion = Column(String(100), default="Streetwear", nullable=False)
     status = Column(String(100), default="Concepting", nullable=True)
     model_image_url = Column(String, nullable=False)  # Picture of ambassador wearing the outfit
-    item_ids = Column(String(1024), default="", nullable=False)  # Comma-separated clothing item UUIDs
-    styling_notes = Column(String(1024), nullable=True)
+    item_ids = Column(String, default="", nullable=False)  # Comma-separated clothing item UUIDs
+    styling_notes = Column(String, nullable=True)
     is_custom_fit_pic = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
