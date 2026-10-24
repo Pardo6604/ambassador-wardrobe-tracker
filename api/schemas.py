@@ -278,7 +278,3 @@ class AIGenerateAnalyticsRequest(BaseModel):
     prompt: str = Field(..., min_length=2)
     target_type: str = "auto"  # "dashboard", "report", or "auto"
 
-
-class AutoSuggestRequest(BaseModel):
-    items: Optional[List[dict]] = None
-

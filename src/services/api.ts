@@ -695,25 +695,9 @@ export const apiService = {
       const queryStr = params.toString() ? `?${params.toString()}` : '';
       const url = `/api/outfits/auto-suggest${queryStr}`;
 
-      const localItems = getStoredItems();
-      const bodyPayload = localItems && localItems.length > 0 ? {
-        items: localItems.map(i => ({
-          id: i.id,
-          brand: i.brand,
-          category: i.category,
-          status: i.status,
-          description: i.description,
-          image_url: i.image_url
-        }))
-      } : {};
-
       let res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader()
-        },
-        body: JSON.stringify(bodyPayload)
+        headers: getAuthHeader()
       });
 
       // If token expired, auto-refresh with demo ambassador credentials and retry
@@ -732,18 +716,18 @@ export const apiService = {
               res = await fetch(url, {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
                   'Authorization': `Bearer ${authData.access_token}`
-                },
-                body: JSON.stringify(bodyPayload)
+                }
               });
             }
           }
         } catch {}
       }
 
+      const responseText = await res.text();
+
       if (res.ok) {
-        const data = await res.json();
+        const data = JSON.parse(responseText);
         const newOutfit = {
           ...data,
           item_ids: typeof data.item_ids === 'string' ? data.item_ids.split(',').filter(Boolean) : (data.item_ids || [])
@@ -754,12 +738,13 @@ export const apiService = {
       }
 
       let errorMsg = 'Failed to generate outfit package.';
-      try {
-        const errJson = await res.json();
-        errorMsg = errJson.detail || errorMsg;
-      } catch {
-        const errTxt = await res.text();
-        errorMsg = errTxt || errorMsg;
+      if (responseText) {
+        try {
+          const errJson = JSON.parse(responseText);
+          errorMsg = (typeof errJson?.detail === 'object' ? JSON.stringify(errJson.detail) : errJson?.detail) || responseText;
+        } catch {
+          errorMsg = responseText;
+        }
       }
       throw new Error(errorMsg);
     } catch (e: any) {

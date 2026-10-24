@@ -52,7 +52,6 @@ try:
         CustomDashboardResponse,
         SharedDashboardResponse,
         AIGenerateAnalyticsRequest,
-        AutoSuggestRequest,
     )
     from .auth import (
         get_password_hash,
@@ -99,7 +98,6 @@ except (ImportError, ValueError):
         CustomDashboardResponse,
         SharedDashboardResponse,
         AIGenerateAnalyticsRequest,
-        AutoSuggestRequest,
     )
     from auth import (
         get_password_hash,
@@ -639,7 +637,6 @@ def auto_suggest_outfit(
     prompt: Optional[str] = Query(None, description="Styling occasion or aesthetic prompt"),
     instructions: Optional[str] = Query(None, description="Specific instructions on how the AI should build the outfit"),
     avatar_id: Optional[uuid.UUID] = Query(None, description="Optional legacy parameter"),
-    request_data: Optional[AutoSuggestRequest] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -660,32 +657,6 @@ def auto_suggest_outfit(
             except Exception:
                 db.rollback()
                 items = all_items
-
-    # If items provided in the request body (e.g. from local storage sync), ensure they are included
-    if request_data and request_data.items:
-        existing_ids = {str(i.id) for i in items}
-        for itm_data in request_data.items:
-            itm_id_str = str(itm_data.get("id") or "")
-            if itm_id_str not in existing_ids:
-                try:
-                    new_item = ClothingItem(
-                        id=uuid.UUID(itm_id_str) if itm_id_str and len(itm_id_str) == 36 else uuid.uuid4(),
-                        user_id=current_user.id,
-                        image_url=itm_data.get("image_url", ""),
-                        category=itm_data.get("category", "Tops"),
-                        brand=itm_data.get("brand", "Unknown"),
-                        status=itm_data.get("status", "Unworn"),
-                        description=itm_data.get("description", "")
-                    )
-                    db.add(new_item)
-                    items.append(new_item)
-                    existing_ids.add(str(new_item.id))
-                except Exception:
-                    pass
-        try:
-            db.commit()
-        except Exception:
-            db.rollback()
 
     if not items:
         raise HTTPException(status_code=400, detail="No clothes found in your closet. Please upload some pieces first.")
