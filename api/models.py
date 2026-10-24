@@ -121,7 +121,7 @@ class ClothingItem(Base):
 
     id = Column(GUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(GUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    image_url = Column(String(1024), nullable=False)
+    image_url = Column(String, nullable=False)
     category = Column(String(50), nullable=False, index=True)  # Tops, Bottoms, Outerwear, Footwear, Accessories
     brand = Column(String(100), nullable=False, index=True)
     status = Column(String(50), nullable=True, default="Unworn", index=True)  # Unworn, Worn, Posted, Needs Returning
@@ -140,7 +140,7 @@ class Outfit(Base):
     title = Column(String(150), nullable=False)
     occasion = Column(String(100), default="Streetwear", nullable=False)
     status = Column(String(100), default="Concepting", nullable=True)
-    model_image_url = Column(String(2048), nullable=False)  # Picture of ambassador wearing the outfit
+    model_image_url = Column(String, nullable=False)  # Picture of ambassador wearing the outfit
     item_ids = Column(String(1024), default="", nullable=False)  # Comma-separated clothing item UUIDs
     styling_notes = Column(String(1024), nullable=True)
     is_custom_fit_pic = Column(Boolean, default=False)
