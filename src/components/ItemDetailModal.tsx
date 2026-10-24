@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ClothingItem, ItemStatus } from '../types';
-import { X, Copy, Check, Trash2, Calendar, Tag, AlertCircle, Share2, Sparkles } from 'lucide-react';
+import { X, Copy, Check, Trash2, Calendar, Tag, AlertCircle, Share2, Sparkles, Camera, Pencil, Upload } from 'lucide-react';
+import { compressImage } from '../utils/imageCompressor';
 
 interface ItemDetailModalProps {
   item: ClothingItem | null;
   onClose: () => void;
   onUpdateStatus: (id: string, newStatus: ItemStatus) => void;
+  onUpdateItem?: (id: string, updates: Partial<ClothingItem>) => Promise<void>;
   onDelete: (id: string) => void;
   relatedOutfits?: import('../types').OutfitSuggestion[];
   onNavigateToOutfit?: (outfitId: string) => void;
@@ -22,12 +24,29 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   item,
   onClose,
   onUpdateStatus,
+  onUpdateItem,
   onDelete,
   relatedOutfits = [],
   onNavigateToOutfit,
 }) => {
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Editable description state
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionText, setDescriptionText] = useState('');
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
+
+  // Replace photo state
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (item) {
+      setDescriptionText(item.description || '');
+      setIsEditingDescription(false);
+    }
+  }, [item]);
 
   if (!item) return null;
 
@@ -43,6 +62,41 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const handleDelete = () => {
     onDelete(item.id);
     onClose();
+  };
+
+  const handleSaveDescription = async () => {
+    if (!onUpdateItem) return;
+    setIsSavingDescription(true);
+    try {
+      await onUpdateItem(item.id, { description: descriptionText.trim() });
+      setIsEditingDescription(false);
+    } finally {
+      setIsSavingDescription(false);
+    }
+  };
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUpdateItem) return;
+
+    setIsUploadingImage(true);
+    try {
+      const compressed = await compressImage(file, 1024, 0.85);
+      await onUpdateItem(item.id, { image_url: compressed });
+    } catch {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        if (typeof evt.target?.result === 'string') {
+          await onUpdateItem(item.id, { image_url: evt.target.result });
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploadingImage(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -72,15 +126,62 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         <div className="overflow-y-auto p-5 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Left Column: Visual Card */}
           <div className="flex flex-col items-center">
-            <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-[#F4F4F3] border border-neutral-200/70 shadow-xs flex items-center justify-center relative">
+            <div className="w-full aspect-[3/4] rounded-xl overflow-hidden bg-[#F4F4F3] border border-neutral-200/70 shadow-xs flex items-center justify-center relative group">
               <img
                 src={item.image_url}
                 alt={item.brand}
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover object-center"
               />
+
+              {/* Hover overlay to replace picture */}
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={isUploadingImage}
+                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white cursor-pointer backdrop-blur-[1px]"
+                title="Replace current picture"
+              >
+                {isUploadingImage ? (
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Camera className="w-6 h-6 mb-1 text-white" />
+                    <span className="text-xs font-semibold">Replace Photo</span>
+                  </>
+                )}
+              </button>
+
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageFileChange}
+              />
             </div>
-            <div className="mt-3 w-full flex items-center justify-between text-[11px] text-neutral-400">
+
+            {/* Direct button below image for mobile and desktop convenience */}
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isUploadingImage}
+              className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-xs font-semibold text-neutral-700 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {isUploadingImage ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-neutral-700 border-t-transparent rounded-full animate-spin" />
+                  <span>Uploading Image...</span>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>Replace Picture</span>
+                </>
+              )}
+            </button>
+
+            <div className="mt-2.5 w-full flex items-center justify-between text-[11px] text-neutral-400">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
                 Received {new Date(item.created_at).toLocaleDateString()}
@@ -146,18 +247,75 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 </div>
               )}
 
-              {/* Piece Description & AI Styling Profile */}
-              {item.description && (
-                <div className="p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg">
-                  <span className="text-[11px] font-semibold text-indigo-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    Piece Description & Styling Profile
+              {/* Piece Description */}
+              <div className="p-3 bg-neutral-50/90 border border-neutral-200/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    Piece Description
                   </span>
-                  <p className="text-xs text-indigo-950/80 leading-relaxed">
-                    {item.description}
-                  </p>
+                  {!isEditingDescription ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDescriptionText(item.description || '');
+                        setIsEditingDescription(true);
+                      }}
+                      className="text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      <span>{item.description ? 'Edit' : '+ Add Description'}</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDescriptionText(item.description || '');
+                          setIsEditingDescription(false);
+                        }}
+                        className="text-[11px] text-neutral-400 hover:text-neutral-700 cursor-pointer px-1.5 py-0.5"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingDescription}
+                        onClick={handleSaveDescription}
+                        className="text-[11px] font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded px-2.5 py-1 cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
+                      >
+                        {isSavingDescription ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {isEditingDescription ? (
+                  <div className="space-y-1.5">
+                    <textarea
+                      rows={3}
+                      value={descriptionText}
+                      onChange={(e) => setDescriptionText(e.target.value)}
+                      placeholder="Detail color, material (e.g. 100% cashmere, raw denim, silk), cut, silhouette, or styling notes..."
+                      className="w-full p-2.5 text-xs bg-white border border-neutral-200 rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-900 resize-none"
+                      autoFocus
+                    />
+                    <p className="text-[10px] text-neutral-400">
+                      The AI Stylist analyzes materials, colors, and cuts from this description to curate outfits.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-neutral-700 leading-relaxed">
+                    {item.description ? (
+                      item.description
+                    ) : (
+                      <span className="text-neutral-400 italic">
+                        No description yet. Click to add details like colors, fabrics, and cut for better AI styling.
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
 
               {/* Notes */}
               {item.notes && (

@@ -207,15 +207,22 @@ export const apiService = {
   },
 
   /**
-   * PUT /api/items/{id} - Update item status or details
+   * PUT /api/items/{id} - Update item fields (status, description, image_url, brand, category)
    */
-  async updateItemStatus(id: string, newStatus: ItemStatus): Promise<ClothingItem | null> {
+  async updateItem(id: string, updates: Partial<ClothingItem>): Promise<ClothingItem | null> {
     try {
-      await fetch(`/api/items/${id}`, {
+      const res = await fetch(`/api/items/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(updates),
       });
+      if (res.ok) {
+        const data = await res.json();
+        const current = getStoredItems();
+        const next = current.map(i => i.id === id ? { ...i, ...data } : i);
+        saveStoredItems(next);
+        return data;
+      }
     } catch {
       // Local fallback
     }
@@ -224,9 +231,16 @@ export const apiService = {
     const target = current.find(i => i.id === id);
     if (!target) return null;
 
-    target.status = newStatus;
+    Object.assign(target, updates);
     saveStoredItems([...current]);
     return target;
+  },
+
+  /**
+   * PUT /api/items/{id} - Update item status or details
+   */
+  async updateItemStatus(id: string, newStatus: ItemStatus): Promise<ClothingItem | null> {
+    return this.updateItem(id, { status: newStatus });
   },
 
   /**

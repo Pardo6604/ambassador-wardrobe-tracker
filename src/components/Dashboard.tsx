@@ -162,6 +162,17 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleUpdateItem = async (id: string, updates: Partial<ClothingItem>) => {
+    const updated = await apiService.updateItem(id, updates);
+    if (updated) {
+      setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+      if (selectedItem?.id === id) {
+        setSelectedItem(prev => prev ? { ...prev, ...updates } : null);
+      }
+      showToast('Piece updated successfully');
+    }
+  };
+
   const handleDeleteItem = async (id: string) => {
     await apiService.deleteItem(id);
     setItems(prev => prev.filter(item => item.id !== id));
@@ -426,6 +437,7 @@ export const Dashboard: React.FC = () => {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onUpdateStatus={handleUpdateStatus}
+        onUpdateItem={handleUpdateItem}
         onDelete={handleDeleteItem}
         relatedOutfits={selectedItem ? outfits.filter(o => o.item_ids.includes(selectedItem.id)) : []}
         onNavigateToOutfit={(outfitId) => {
