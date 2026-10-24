@@ -10,6 +10,89 @@ function getAuthHeader(): Record<string, string> {
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const currentToken = localStorage.getItem(TOKEN_KEY);
+      if (currentToken) {
+        // Try refresh endpoint with current token (works during grace period too)
+        const res = await fetch('/api/user/refresh', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.access_token) {
+            localStorage.setItem(TOKEN_KEY, data.access_token);
+            localStorage.setItem('closet_pr_auth_session', 'logged_in');
+            return data.access_token;
+          }
+        }
+      }
+
+      // If refresh failed or no token exists, auto-relogin for demo account
+      const storedEmail = localStorage.getItem('closet_pr_auth_email') || 'pardo@gmail.com';
+      if (storedEmail === 'pardo@gmail.com') {
+        const loginRes = await fetch('/api/user/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'pardo@gmail.com', password: 'password123' })
+        });
+        if (loginRes.ok) {
+          const data = await loginRes.json();
+          if (data?.access_token) {
+            localStorage.setItem(TOKEN_KEY, data.access_token);
+            localStorage.setItem('closet_pr_auth_session', 'logged_in');
+            return data.access_token;
+          }
+        }
+      }
+
+      // If recovery failed, clear token and notify session expiration
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.setItem('closet_pr_auth_session', 'logged_out');
+      window.dispatchEvent(new CustomEvent('closet_pr_auth_expired'));
+      return null;
+    } catch {
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  
+  if (!headers.has('Authorization')) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
+
+  let res = await fetch(input, { ...init, headers });
+
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const newToken = await refreshAuthToken();
+    if (newToken) {
+      const retryHeaders = new Headers(init.headers || {});
+      retryHeaders.set('Authorization', `Bearer ${newToken}`);
+      res = await fetch(input, { ...init, headers: retryHeaders });
+    }
+  }
+
+  return res;
+}
+
 const ITEMS_STORAGE_KEY = 'closet_pr_ambassador_items_v1';
 const OUTFITS_STORAGE_KEY = 'closet_pr_ambassador_outfits_v1';
 const PROFILE_STORAGE_KEY = 'closet_pr_ambassador_profile_v1';
@@ -586,9 +669,10 @@ export const apiService = {
         if (typeof window !== 'undefined') {
           localStorage.setItem(TOKEN_KEY, data.access_token);
           localStorage.setItem('closet_pr_auth_session', 'logged_in');
+          localStorage.setItem('closet_pr_auth_email', cleanEmail);
           // fetch profile to update local storage
           try {
-            const profRes = await fetch('/api/user/profile', { headers: getAuthHeader() });
+            const profRes = await authFetch('/api/user/profile');
             if (profRes.ok) {
                const profile = await profRes.json();
                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
@@ -637,9 +721,8 @@ export const apiService = {
       if (instructions && instructions.trim()) params.set('instructions', instructions.trim());
       const queryStr = params.toString() ? `?${params.toString()}` : '';
       const url = `/api/outfits/auto-suggest${queryStr}`;
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method: 'POST',
-        headers: getAuthHeader()
       });
       if (res.ok) {
         const data = await res.json();
@@ -651,10 +734,21 @@ export const apiService = {
         saveStoredOutfits([newOutfit, ...current]);
         return newOutfit;
       }
-      const err = await res.text();
-      throw new Error(err);
-    } catch (e) {
-      console.error(e);
+      let errMsg = 'Failed to generate outfit package.';
+      try {
+        const errJson = await res.json();
+        errMsg = errJson?.detail || errMsg;
+        if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
+      } catch {
+        const txt = await res.text();
+        errMsg = txt || errMsg;
+      }
+      if (errMsg.includes('credentials') || errMsg.includes('authenticated')) {
+        errMsg = 'Your session has expired. Please sign in again to generate AI outfit packages.';
+      }
+      throw new Error(errMsg);
+    } catch (e: any) {
+      console.error('autoSuggestOutfit error:', e);
       throw e;
     }
   },
@@ -740,6 +834,7 @@ export const apiService = {
   async logout(): Promise<void> {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('closet_pr_auth_email');
       localStorage.removeItem(PROFILE_STORAGE_KEY);
       localStorage.removeItem(ITEMS_STORAGE_KEY);
       localStorage.removeItem(OUTFITS_STORAGE_KEY);
@@ -750,7 +845,25 @@ export const apiService = {
   isLoggedIn(): boolean {
     if (typeof window === 'undefined') return true;
     const token = localStorage.getItem(TOKEN_KEY);
-    return !!token && localStorage.getItem('closet_pr_auth_session') !== 'logged_out';
+    if (!token || localStorage.getItem('closet_pr_auth_session') === 'logged_out') {
+      return false;
+    }
+    try {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]));
+        if (payload.exp) {
+          const now = Math.floor(Date.now() / 1000);
+          // If expired by more than 180 days (outside grace window), treat as logged out
+          if (now - payload.exp > 86400 * 180) {
+            return false;
+          }
+        }
+      }
+    } catch {
+      // Ignore parse failure, allow request to attempt recovery
+    }
+    return true;
   },
 
 

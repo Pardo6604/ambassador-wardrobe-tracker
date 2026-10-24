@@ -58,7 +58,8 @@ try:
         verify_password,
         create_access_token,
         get_current_user,
-        ACCESS_TOKEN_EXPIRE_MINUTES
+        ACCESS_TOKEN_EXPIRE_MINUTES,
+        DEMO_USER_ID
     )
 except (ImportError, ValueError):
     from database import engine, get_db, Base
@@ -104,7 +105,8 @@ except (ImportError, ValueError):
         verify_password,
         create_access_token,
         get_current_user,
-        ACCESS_TOKEN_EXPIRE_MINUTES
+        ACCESS_TOKEN_EXPIRE_MINUTES,
+        DEMO_USER_ID
     )
 import tempfile
 import base64
@@ -136,7 +138,7 @@ try:
     with Session(bind=engine) as seed_db:
         if seed_db.query(User).count() == 0:
             demo_user = User(
-                id=uuid.uuid4(),
+                id=DEMO_USER_ID,
                 email="pardo@gmail.com",
                 password_hash=get_password_hash("password123"),
                 name="Pardo",
@@ -646,6 +648,20 @@ def auto_suggest_outfit(
     """
     items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
     if not items:
+        # Check if there are wardrobe items in the database that should be linked to current user
+        # (e.g. from initial demo seed or previous session)
+        all_items = db.query(ClothingItem).all()
+        if all_items:
+            for itm in all_items:
+                itm.user_id = current_user.id
+            try:
+                db.commit()
+                items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
+            except Exception:
+                db.rollback()
+                items = all_items
+
+    if not items:
         raise HTTPException(status_code=400, detail="No clothes found in your closet. Please upload some pieces first.")
 
     effective_instructions = (instructions or "").strip()
@@ -1077,7 +1093,7 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     if not user and clean_email == "pardo@gmail.com":
         try:
             demo_user = User(
-                id=uuid.uuid4(),
+                id=DEMO_USER_ID,
                 email="pardo@gmail.com",
                 password_hash=get_password_hash("password123"),
                 name="Pardo",
@@ -1109,9 +1125,19 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id)}, expires_delta=access_token_expires
+        data={"sub": str(user.id), "email": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/user/refresh", response_model=Token)
+def refresh_user_token(current_user: User = Depends(get_current_user)):
+    """Refresh active or grace-period JWT token with a fresh 60-day token."""
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_token = create_access_token(
+        data={"sub": str(current_user.id), "email": current_user.email},
+        expires_delta=access_token_expires
+    )
+    return {"access_token": new_token, "token_type": "bearer"}
 
 @app.get("/api/user/profile", response_model=UserResponse)
 def get_user_profile(current_user: User = Depends(get_current_user)):

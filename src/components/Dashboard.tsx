@@ -47,9 +47,19 @@ export const Dashboard: React.FC = () => {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Check login state
+  // Check login state and listen for session expiration
   useEffect(() => {
     setIsLoggedIn(apiService.isLoggedIn());
+
+    const handleAuthExpired = () => {
+      setIsLoggedIn(false);
+      showToast('Session expired. Please sign in to continue.');
+    };
+
+    window.addEventListener('closet_pr_auth_expired', handleAuthExpired);
+    return () => {
+      window.removeEventListener('closet_pr_auth_expired', handleAuthExpired);
+    };
   }, []);
 
   // Load initial data
