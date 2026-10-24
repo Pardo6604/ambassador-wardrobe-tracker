@@ -8,6 +8,13 @@
   h1, h2, h3, .font-display {
     font-family: 'Syne', 'Plus Jakarta Sans', sans-serif;
   }
+
+  .kpi-number {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+    font-variant-numeric: normal;
+    letter-spacing: -0.02em;
+    font-stretch: 100%;
+  }
 }
 
 /* Hide scrollbars for clean horizontal tab controls while preserving touch scroll */

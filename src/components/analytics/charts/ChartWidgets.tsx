@@ -35,10 +35,18 @@ export const KpiWidget: React.FC<KpiWidgetProps> = ({
         {icon && <div className="p-1.5 rounded-lg bg-neutral-100 text-neutral-700">{icon}</div>}
       </div>
       <div>
-        <div className="text-3xl sm:text-4xl font-bold tracking-tight text-neutral-900 font-sans tabular-nums leading-none py-1">
+        <div
+          className="text-3xl sm:text-4xl font-bold text-neutral-900 kpi-number leading-tight py-0.5"
+          style={{
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+            fontVariantNumeric: 'normal',
+            fontStretch: '100%',
+            letterSpacing: '-0.02em',
+          }}
+        >
           {value}
         </div>
-        <div className="flex items-center gap-2 mt-2.5">
+        <div className="flex items-center gap-2 mt-2">
           {trend && (
             <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${trendBg}`}>
               {trend}
@@ -130,7 +138,16 @@ export const DonutChartWidget: React.FC<DonutChartProps> = ({
             )}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-3xl font-bold tracking-tight text-neutral-900 font-sans tabular-nums leading-none">{total}</span>
+            <span
+              className="text-3xl font-bold text-neutral-900 kpi-number leading-none"
+              style={{
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+                fontVariantNumeric: 'normal',
+                fontStretch: '100%',
+              }}
+            >
+              {total}
+            </span>
             <span className="text-[10px] uppercase font-semibold text-neutral-400 mt-1">{totalLabel}</span>
           </div>
         </div>
@@ -291,7 +308,14 @@ export const FunnelWidget: React.FC<FunnelChartProps> = ({ title, subtitle, stag
               </div>
 
               <div>
-                <div className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 font-sans tabular-nums leading-none py-0.5">
+                <div
+                  className="text-2xl sm:text-3xl font-bold text-neutral-900 kpi-number leading-none py-0.5"
+                  style={{
+                    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+                    fontVariantNumeric: 'normal',
+                    fontStretch: '100%',
+                  }}
+                >
                   {stage.count}
                 </div>
                 <div className="text-xs font-semibold text-neutral-800 mt-1.5">{stage.label}</div>
