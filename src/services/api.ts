@@ -10,89 +10,6 @@ function getAuthHeader(): Record<string, string> {
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 
-let refreshPromise: Promise<string | null> | null = null;
-
-async function refreshAuthToken(): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-  if (refreshPromise) return refreshPromise;
-
-  refreshPromise = (async () => {
-    try {
-      const currentToken = localStorage.getItem(TOKEN_KEY);
-      if (currentToken) {
-        // Try refresh endpoint with current token (works during grace period too)
-        const res = await fetch('/api/user/refresh', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${currentToken}` }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.access_token) {
-            localStorage.setItem(TOKEN_KEY, data.access_token);
-            localStorage.setItem('closet_pr_auth_session', 'logged_in');
-            return data.access_token;
-          }
-        }
-      }
-
-      // If refresh failed or no token exists, auto-relogin for demo account
-      const storedEmail = localStorage.getItem('closet_pr_auth_email') || 'pardo@gmail.com';
-      if (storedEmail === 'pardo@gmail.com') {
-        const loginRes = await fetch('/api/user/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'pardo@gmail.com', password: 'password123' })
-        });
-        if (loginRes.ok) {
-          const data = await loginRes.json();
-          if (data?.access_token) {
-            localStorage.setItem(TOKEN_KEY, data.access_token);
-            localStorage.setItem('closet_pr_auth_session', 'logged_in');
-            return data.access_token;
-          }
-        }
-      }
-
-      // If recovery failed, clear token and notify session expiration
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.setItem('closet_pr_auth_session', 'logged_out');
-      window.dispatchEvent(new CustomEvent('closet_pr_auth_expired'));
-      return null;
-    } catch {
-      return null;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
-}
-
-async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-  const headers = new Headers(init.headers || {});
-  
-  if (!headers.has('Authorization')) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
-  }
-
-  let res = await fetch(input, { ...init, headers });
-
-  if (res.status === 401 && typeof window !== 'undefined') {
-    const newToken = await refreshAuthToken();
-    if (newToken) {
-      const retryHeaders = new Headers(init.headers || {});
-      retryHeaders.set('Authorization', `Bearer ${newToken}`);
-      res = await fetch(input, { ...init, headers: retryHeaders });
-    }
-  }
-
-  return res;
-}
-
 const ITEMS_STORAGE_KEY = 'closet_pr_ambassador_items_v1';
 const OUTFITS_STORAGE_KEY = 'closet_pr_ambassador_outfits_v1';
 const PROFILE_STORAGE_KEY = 'closet_pr_ambassador_profile_v1';
@@ -120,9 +37,14 @@ function getStoredItems(): ClothingItem[] {
     }
     const parsed = JSON.parse(raw);
     
-    // Filter out old seed item if present, preserving user items
+    // Auto-purge old hardcoded seeded items
     if (Array.isArray(parsed)) {
-      return parsed.filter(i => i && i.id !== 'f83a48e2-c049-4113-91b4-8395564b1201');
+      const hasOldSeeded = parsed.some(i => i.id === 'f83a48e2-c049-4113-91b4-8395564b1201');
+      if (hasOldSeeded) {
+        localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify([]));
+        return [];
+      }
+      return parsed;
     }
     
     return INITIAL_CLOTHING_ITEMS;
@@ -152,9 +74,14 @@ function getStoredOutfits(): OutfitSuggestion[] {
     }
     const parsed = JSON.parse(raw);
     
-    // Filter out old seed outfit if present, preserving user outfits
+    // Auto-purge old hardcoded outfits
     if (Array.isArray(parsed)) {
-      return parsed.filter(o => o && o.id !== 'outfit-scandi-streetwear-01');
+      const hasOldSeeded = parsed.some(o => o.id === 'outfit-scandi-streetwear-01');
+      if (hasOldSeeded) {
+        localStorage.setItem(OUTFITS_STORAGE_KEY, JSON.stringify([]));
+        return [];
+      }
+      return parsed;
     }
     
     return INITIAL_OUTFITS;
@@ -184,79 +111,36 @@ export const apiService = {
    * GET /api/items with optional filtering
    */
   async getItems(params: FilterParams = {}): Promise<ClothingItem[]> {
-    const localItems = getStoredItems();
-
     try {
       const query = new URLSearchParams();
       if (params.category && params.category !== 'All') query.append('category', params.category);
       if (params.status && params.status !== 'All') query.append('status', params.status);
       if (params.brand && params.brand.trim()) query.append('brand', params.brand.trim());
 
-      const res = await authFetch(`/api/items?${query.toString()}`, {
-        headers: { 'Accept': 'application/json' },
+      const res = await fetch(`/api/items?${query.toString()}`, {
+        headers: { 'Accept': 'application/json', ...getAuthHeader() },
       });
 
       if (res.ok) {
-        const serverItems = await res.json();
-        if (Array.isArray(serverItems)) {
-          const serverMap = new Map<string, ClothingItem>();
-          serverItems.forEach((i: ClothingItem) => serverMap.set(String(i.id), i));
-
-          // Retain any local item uploaded by user that is not yet in the DB
-          const unsyncedItems = localItems.filter(i => !serverMap.has(String(i.id)));
-
-          // Sync unsynced items to backend in background so they are persisted in cloud
-          if (unsyncedItems.length > 0) {
-            unsyncedItems.forEach(async (item) => {
-              try {
-                await authFetch('/api/items/upload', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    brand: item.brand,
-                    category: item.category,
-                    status: item.status,
-                    description: item.description,
-                    image_url: item.image_url,
-                  })
-                });
-              } catch {}
-            });
-          }
-
-          // Combined wardrobe items: server items + local user-uploaded items
-          const combined = [...serverItems, ...unsyncedItems];
-          if (combined.length > 0) {
-            saveStoredItems(combined);
-            let filtered = combined;
-            if (params.category && params.category !== 'All') {
-              filtered = filtered.filter(i => i.category.toLowerCase() === params.category!.toLowerCase());
-            }
-            if (params.status && params.status !== 'All') {
-              filtered = filtered.filter(i => i.status.toLowerCase() === params.status!.toLowerCase());
-            }
-            if (params.brand && params.brand.trim()) {
-              const q = params.brand.trim().toLowerCase();
-              filtered = filtered.filter(i =>
-                i.brand.toLowerCase().includes(q) ||
-                (i.campaign_tag && i.campaign_tag.toLowerCase().includes(q))
-              );
-            }
-            return filtered;
-          }
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          return data;
         }
       }
     } catch {
       // Local fallback
     }
 
-    let items = localItems;
+    let items = getStoredItems();
+
     if (params.category && params.category !== 'All') {
       items = items.filter(i => i.category.toLowerCase() === params.category!.toLowerCase());
     }
+
     if (params.status && params.status !== 'All') {
       items = items.filter(i => i.status.toLowerCase() === params.status!.toLowerCase());
     }
+
     if (params.brand && params.brand.trim()) {
       const q = params.brand.trim().toLowerCase();
       items = items.filter(i =>
@@ -264,6 +148,7 @@ export const apiService = {
         (i.campaign_tag && i.campaign_tag.toLowerCase().includes(q))
       );
     }
+
     return items;
   },
 
@@ -385,37 +270,23 @@ export const apiService = {
    * GET /api/outfits
    */
   async getOutfits(occasion?: string): Promise<OutfitSuggestion[]> {
-    const localOutfits = getStoredOutfits();
-
     try {
       const url = occasion && occasion !== 'All' ? `/api/outfits?occasion=${encodeURIComponent(occasion)}` : '/api/outfits';
-      const res = await authFetch(url, { headers: { 'Accept': 'application/json' } });
+      const res = await fetch(url, { headers: { 'Accept': 'application/json', ...getAuthHeader() } });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          const serverOutfits: OutfitSuggestion[] = data.map((o: any) => ({
+          return data.map((o: { id: string; title: string; occasion: string; model_image_url: string; item_ids: string; styling_notes?: string; created_at: string }) => ({
             ...o,
             item_ids: typeof o.item_ids === 'string' ? o.item_ids.split(',').filter(Boolean) : (o.item_ids || []),
           }));
-          const serverMap = new Map<string, OutfitSuggestion>();
-          serverOutfits.forEach(o => serverMap.set(String(o.id), o));
-          const unsynced = localOutfits.filter(o => !serverMap.has(String(o.id)));
-          const combined = [...serverOutfits, ...unsynced];
-          if (combined.length > 0) {
-            saveStoredOutfits(combined);
-            let filtered = combined;
-            if (occasion && occasion !== 'All') {
-              filtered = filtered.filter(o => o.occasion.toLowerCase() === occasion.toLowerCase());
-            }
-            return filtered;
-          }
         }
       }
     } catch {
       // Local fallback
     }
 
-    let outfits = localOutfits;
+    let outfits = getStoredOutfits();
     if (occasion && occasion !== 'All') {
       outfits = outfits.filter(o => o.occasion.toLowerCase() === occasion.toLowerCase());
     }
@@ -715,10 +586,9 @@ export const apiService = {
         if (typeof window !== 'undefined') {
           localStorage.setItem(TOKEN_KEY, data.access_token);
           localStorage.setItem('closet_pr_auth_session', 'logged_in');
-          localStorage.setItem('closet_pr_auth_email', cleanEmail);
           // fetch profile to update local storage
           try {
-            const profRes = await authFetch('/api/user/profile');
+            const profRes = await fetch('/api/user/profile', { headers: getAuthHeader() });
             if (profRes.ok) {
                const profile = await profRes.json();
                localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
@@ -767,8 +637,9 @@ export const apiService = {
       if (instructions && instructions.trim()) params.set('instructions', instructions.trim());
       const queryStr = params.toString() ? `?${params.toString()}` : '';
       const url = `/api/outfits/auto-suggest${queryStr}`;
-      const res = await authFetch(url, {
+      const res = await fetch(url, {
         method: 'POST',
+        headers: getAuthHeader()
       });
       if (res.ok) {
         const data = await res.json();
@@ -780,21 +651,10 @@ export const apiService = {
         saveStoredOutfits([newOutfit, ...current]);
         return newOutfit;
       }
-      let errMsg = 'Failed to generate outfit package.';
-      try {
-        const errJson = await res.json();
-        errMsg = errJson?.detail || errMsg;
-        if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
-      } catch {
-        const txt = await res.text();
-        errMsg = txt || errMsg;
-      }
-      if (errMsg.includes('credentials') || errMsg.includes('authenticated')) {
-        errMsg = 'Your session has expired. Please sign in again to generate AI outfit packages.';
-      }
-      throw new Error(errMsg);
-    } catch (e: any) {
-      console.error('autoSuggestOutfit error:', e);
+      const err = await res.text();
+      throw new Error(err);
+    } catch (e) {
+      console.error(e);
       throw e;
     }
   },
@@ -880,7 +740,6 @@ export const apiService = {
   async logout(): Promise<void> {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem('closet_pr_auth_email');
       localStorage.removeItem(PROFILE_STORAGE_KEY);
       localStorage.removeItem(ITEMS_STORAGE_KEY);
       localStorage.removeItem(OUTFITS_STORAGE_KEY);
@@ -891,25 +750,7 @@ export const apiService = {
   isLoggedIn(): boolean {
     if (typeof window === 'undefined') return true;
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token || localStorage.getItem('closet_pr_auth_session') === 'logged_out') {
-      return false;
-    }
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(atob(parts[1]));
-        if (payload.exp) {
-          const now = Math.floor(Date.now() / 1000);
-          // If expired by more than 180 days (outside grace window), treat as logged out
-          if (now - payload.exp > 86400 * 180) {
-            return false;
-          }
-        }
-      }
-    } catch {
-      // Ignore parse failure, allow request to attempt recovery
-    }
-    return true;
+    return !!token && localStorage.getItem('closet_pr_auth_session') !== 'logged_out';
   },
 
 
