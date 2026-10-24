@@ -120,14 +120,9 @@ function getStoredItems(): ClothingItem[] {
     }
     const parsed = JSON.parse(raw);
     
-    // Auto-purge old hardcoded seeded items
+    // Filter out old seed item if present, preserving user items
     if (Array.isArray(parsed)) {
-      const hasOldSeeded = parsed.some(i => i.id === 'f83a48e2-c049-4113-91b4-8395564b1201');
-      if (hasOldSeeded) {
-        localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify([]));
-        return [];
-      }
-      return parsed;
+      return parsed.filter(i => i && i.id !== 'f83a48e2-c049-4113-91b4-8395564b1201');
     }
     
     return INITIAL_CLOTHING_ITEMS;
@@ -157,14 +152,9 @@ function getStoredOutfits(): OutfitSuggestion[] {
     }
     const parsed = JSON.parse(raw);
     
-    // Auto-purge old hardcoded outfits
+    // Filter out old seed outfit if present, preserving user outfits
     if (Array.isArray(parsed)) {
-      const hasOldSeeded = parsed.some(o => o.id === 'outfit-scandi-streetwear-01');
-      if (hasOldSeeded) {
-        localStorage.setItem(OUTFITS_STORAGE_KEY, JSON.stringify([]));
-        return [];
-      }
-      return parsed;
+      return parsed.filter(o => o && o.id !== 'outfit-scandi-streetwear-01');
     }
     
     return INITIAL_OUTFITS;
@@ -194,36 +184,79 @@ export const apiService = {
    * GET /api/items with optional filtering
    */
   async getItems(params: FilterParams = {}): Promise<ClothingItem[]> {
+    const localItems = getStoredItems();
+
     try {
       const query = new URLSearchParams();
       if (params.category && params.category !== 'All') query.append('category', params.category);
       if (params.status && params.status !== 'All') query.append('status', params.status);
       if (params.brand && params.brand.trim()) query.append('brand', params.brand.trim());
 
-      const res = await fetch(`/api/items?${query.toString()}`, {
-        headers: { 'Accept': 'application/json', ...getAuthHeader() },
+      const res = await authFetch(`/api/items?${query.toString()}`, {
+        headers: { 'Accept': 'application/json' },
       });
 
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return data;
+        const serverItems = await res.json();
+        if (Array.isArray(serverItems)) {
+          const serverMap = new Map<string, ClothingItem>();
+          serverItems.forEach((i: ClothingItem) => serverMap.set(String(i.id), i));
+
+          // Retain any local item uploaded by user that is not yet in the DB
+          const unsyncedItems = localItems.filter(i => !serverMap.has(String(i.id)));
+
+          // Sync unsynced items to backend in background so they are persisted in cloud
+          if (unsyncedItems.length > 0) {
+            unsyncedItems.forEach(async (item) => {
+              try {
+                await authFetch('/api/items/upload', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    brand: item.brand,
+                    category: item.category,
+                    status: item.status,
+                    description: item.description,
+                    image_url: item.image_url,
+                  })
+                });
+              } catch {}
+            });
+          }
+
+          // Combined wardrobe items: server items + local user-uploaded items
+          const combined = [...serverItems, ...unsyncedItems];
+          if (combined.length > 0) {
+            saveStoredItems(combined);
+            let filtered = combined;
+            if (params.category && params.category !== 'All') {
+              filtered = filtered.filter(i => i.category.toLowerCase() === params.category!.toLowerCase());
+            }
+            if (params.status && params.status !== 'All') {
+              filtered = filtered.filter(i => i.status.toLowerCase() === params.status!.toLowerCase());
+            }
+            if (params.brand && params.brand.trim()) {
+              const q = params.brand.trim().toLowerCase();
+              filtered = filtered.filter(i =>
+                i.brand.toLowerCase().includes(q) ||
+                (i.campaign_tag && i.campaign_tag.toLowerCase().includes(q))
+              );
+            }
+            return filtered;
+          }
         }
       }
     } catch {
       // Local fallback
     }
 
-    let items = getStoredItems();
-
+    let items = localItems;
     if (params.category && params.category !== 'All') {
       items = items.filter(i => i.category.toLowerCase() === params.category!.toLowerCase());
     }
-
     if (params.status && params.status !== 'All') {
       items = items.filter(i => i.status.toLowerCase() === params.status!.toLowerCase());
     }
-
     if (params.brand && params.brand.trim()) {
       const q = params.brand.trim().toLowerCase();
       items = items.filter(i =>
@@ -231,7 +264,6 @@ export const apiService = {
         (i.campaign_tag && i.campaign_tag.toLowerCase().includes(q))
       );
     }
-
     return items;
   },
 
@@ -353,23 +385,37 @@ export const apiService = {
    * GET /api/outfits
    */
   async getOutfits(occasion?: string): Promise<OutfitSuggestion[]> {
+    const localOutfits = getStoredOutfits();
+
     try {
       const url = occasion && occasion !== 'All' ? `/api/outfits?occasion=${encodeURIComponent(occasion)}` : '/api/outfits';
-      const res = await fetch(url, { headers: { 'Accept': 'application/json', ...getAuthHeader() } });
+      const res = await authFetch(url, { headers: { 'Accept': 'application/json' } });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          return data.map((o: { id: string; title: string; occasion: string; model_image_url: string; item_ids: string; styling_notes?: string; created_at: string }) => ({
+          const serverOutfits: OutfitSuggestion[] = data.map((o: any) => ({
             ...o,
             item_ids: typeof o.item_ids === 'string' ? o.item_ids.split(',').filter(Boolean) : (o.item_ids || []),
           }));
+          const serverMap = new Map<string, OutfitSuggestion>();
+          serverOutfits.forEach(o => serverMap.set(String(o.id), o));
+          const unsynced = localOutfits.filter(o => !serverMap.has(String(o.id)));
+          const combined = [...serverOutfits, ...unsynced];
+          if (combined.length > 0) {
+            saveStoredOutfits(combined);
+            let filtered = combined;
+            if (occasion && occasion !== 'All') {
+              filtered = filtered.filter(o => o.occasion.toLowerCase() === occasion.toLowerCase());
+            }
+            return filtered;
+          }
         }
       }
     } catch {
       // Local fallback
     }
 
-    let outfits = getStoredOutfits();
+    let outfits = localOutfits;
     if (occasion && occasion !== 'All') {
       outfits = outfits.filter(o => o.occasion.toLowerCase() === occasion.toLowerCase());
     }

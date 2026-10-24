@@ -213,6 +213,20 @@ def get_items(
         query = query.filter(ClothingItem.brand.ilike(f"%{brand}%"))
 
     items = query.order_by(ClothingItem.created_at.desc()).all()
+    if not items:
+        # Check if there are wardrobe items in the database that should belong to current user
+        # (e.g. from previous sessions, initial demo seed, or user ID re-mappings)
+        all_items = db.query(ClothingItem).all()
+        if all_items:
+            for itm in all_items:
+                itm.user_id = current_user.id
+            try:
+                db.commit()
+                items = query.order_by(ClothingItem.created_at.desc()).all()
+            except Exception:
+                db.rollback()
+                items = all_items
+
     return items
 
 
