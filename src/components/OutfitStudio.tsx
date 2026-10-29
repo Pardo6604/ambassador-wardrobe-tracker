@@ -196,70 +196,7 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Ambassador Profile Banner: "My Lookbook Model Persona" */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-neutral-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="relative">
-            <img
-              src={profile.avatar_url}
-              alt={profile.name}
-              className="w-12 h-12 rounded-full object-cover border-2 border-neutral-900 shadow-xs"
-            />
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">
-              <Sparkles className="w-3 h-3 text-amber-400" />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-neutral-900 font-['Syne',sans-serif]">
-                {profile.name}
-              </h2>
-              <span className="text-[11px] font-semibold text-neutral-400">
-                {profile.handle}
-              </span>
-            </div>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Brand Ambassador Lookbook · Manage your styled looks, explore AI outfit suggestions, and track fit pics
-            </p>
-          </div>
-        </div>
-
-        {/* Creator Controls */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsSuggestModalOpen(true)}
-            disabled={isAutoSuggesting}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px] disabled:opacity-50"
-            title="Auto-curate an outfit package based on wardrobe descriptions"
-          >
-            {isAutoSuggesting ? (
-              <div className="w-3.5 h-3.5 border-2 border-neutral-900 border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-            )}
-            <span className="hidden sm:inline">{isAutoSuggesting ? 'Curating...' : 'AI Suggest Package'}</span>
-          </button>
-
-          <button
-            onClick={() => setIsTryOnOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px]"
-            title="Use AI to try on a garment"
-          >
-            <Wand2 className="w-3.5 h-3.5 text-white" />
-            <span>AI Try-On</span>
-          </button>
-
-          <button
-            onClick={() => setIsBuilderOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer min-h-[38px]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Style New Outfit</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Subsections Navigation Switcher */}
+      {/* Subsections Navigation Switcher & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200/80 pb-4">
         <div className="flex items-center p-1 bg-neutral-200/70 rounded-xl w-fit">
           <button
@@ -307,9 +244,39 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
           </button>
         </div>
 
-        <span className="text-xs text-neutral-500 font-medium hidden sm:inline">
-          Showing <strong className="text-neutral-900 font-semibold">{filteredOutfits.length}</strong> {activeSubSection === 'suggestions' ? 'outfit suggestions' : activeSubSection === 'my-looks' ? 'looks' : 'outfits'}
-        </span>
+        {/* Creator Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setIsSuggestModalOpen(true)}
+            disabled={isAutoSuggesting}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-neutral-900 bg-amber-300 hover:bg-amber-400 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px] disabled:opacity-50"
+            title="Auto-curate an outfit package based on wardrobe descriptions"
+          >
+            {isAutoSuggesting ? (
+              <div className="w-3.5 h-3.5 border-2 border-neutral-900 border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
+            )}
+            <span className="hidden sm:inline">{isAutoSuggesting ? 'Curating...' : 'AI Suggest Package'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsTryOnOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px]"
+            title="Use AI to try on a garment"
+          >
+            <Wand2 className="w-3.5 h-3.5 text-white" />
+            <span>AI Try-On</span>
+          </button>
+
+          <button
+            onClick={() => setIsBuilderOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg shadow-sm transition-all active:scale-[0.98] cursor-pointer min-h-[38px]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Style New Outfit</span>
+          </button>
+        </div>
       </div>
 
       {/* Subsection Focus Banner: Suggestions */}
