@@ -5,7 +5,7 @@ import { OutfitBuilderModal } from './OutfitBuilderModal';
 import { apiService } from '../services/api';
 import { FitPicUploadModal } from './FitPicUploadModal';
 import { TryOnModal } from './TryOnModal';
-import { Sparkles, Plus, Wand2, Camera, User, SlidersHorizontal, PackageOpen } from 'lucide-react';
+import { Sparkles, Plus, Camera, User, SlidersHorizontal, PackageOpen } from 'lucide-react';
 import { createFitPicModelSvg } from '../data/seedData';
 import { OutfitDetailModal } from './OutfitDetailModal';
 import { AutoSuggestModal } from './AutoSuggestModal';
@@ -258,15 +258,6 @@ export const OutfitStudio: React.FC<OutfitStudioProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
             )}
             <span className="hidden sm:inline">{isAutoSuggesting ? 'Curating...' : 'AI Suggest Package'}</span>
-          </button>
-
-          <button
-            onClick={() => setIsTryOnOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold uppercase tracking-wider text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm rounded-lg transition-all cursor-pointer min-h-[38px]"
-            title="Use AI to try on a garment"
-          >
-            <Wand2 className="w-3.5 h-3.5 text-white" />
-            <span>AI Try-On</span>
           </button>
 
           <button
