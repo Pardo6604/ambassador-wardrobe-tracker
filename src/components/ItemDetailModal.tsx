@@ -9,6 +9,7 @@ interface ItemDetailModalProps {
   onUpdateStatus: (id: string, newStatus: ItemStatus) => void;
   onUpdateItem?: (id: string, updates: Partial<ClothingItem>) => Promise<void>;
   onDelete: (id: string) => void;
+  allCategories?: string[];
   relatedOutfits?: import('../types').OutfitSuggestion[];
   onNavigateToOutfit?: (outfitId: string) => void;
 }
@@ -26,6 +27,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   onUpdateStatus,
   onUpdateItem,
   onDelete,
+  allCategories = ['Tops', 'Bottoms', 'Outerwear', 'Footwear', 'Accessories', 'Dresses'],
   relatedOutfits = [],
   onNavigateToOutfit,
 }) => {
@@ -42,6 +44,20 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [brandText, setBrandText] = useState('');
   const [isSavingBrand, setIsSavingBrand] = useState(false);
 
+  // Editable category state
+  const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
+  const [isCustomCategoryOpen, setIsCustomCategoryOpen] = useState(false);
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+
+  const categoryOptions = React.useMemo(() => {
+    const defaults = ['Tops', 'Bottoms', 'Outerwear', 'Footwear', 'Accessories', 'Dresses'];
+    const list = (allCategories && allCategories.length > 0) ? allCategories : defaults;
+    if (item?.category && !list.some(c => c.toLowerCase() === item.category.toLowerCase())) {
+      return [...list, item.category];
+    }
+    return list;
+  }, [allCategories, item?.category]);
+
   // Replace photo state
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +68,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setIsEditingDescription(false);
       setBrandText(item.brand || '');
       setIsEditingBrand(false);
+      setIsCustomCategoryOpen(false);
+      setCustomCategoryInput('');
     }
   }, [item]);
 
@@ -91,6 +109,26 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     } finally {
       setIsSavingBrand(false);
     }
+  };
+
+  const handleSelectCategory = async (newCategory: string) => {
+    if (!item || !onUpdateItem || isUpdatingCategory) return;
+    if (item.category.toLowerCase() === newCategory.trim().toLowerCase()) return;
+    setIsUpdatingCategory(true);
+    try {
+      await onUpdateItem(item.id, { category: newCategory.trim() });
+    } catch (err) {
+      console.error('Failed to update category', err);
+    } finally {
+      setIsUpdatingCategory(false);
+    }
+  };
+
+  const handleSaveCustomCategory = async () => {
+    if (!customCategoryInput.trim()) return;
+    await handleSelectCategory(customCategoryInput.trim());
+    setIsCustomCategoryOpen(false);
+    setCustomCategoryInput('');
   };
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,6 +311,82 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                   <div className="flex items-center gap-1.5 mt-1 text-xs text-neutral-600 font-medium">
                     <Tag className="w-3.5 h-3.5 text-neutral-400" />
                     <span>{item.campaign_tag}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Category Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+                    Category
+                  </label>
+                  <span className="text-[11px] text-neutral-400 font-medium">
+                    Current: <strong className="text-neutral-700">{item.category}</strong>
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {categoryOptions.map((cat) => {
+                    const isCurrent = (item.category || '').toLowerCase() === cat.toLowerCase();
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        disabled={isUpdatingCategory}
+                        onClick={() => handleSelectCategory(cat)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                            : 'bg-white hover:bg-neutral-50 text-neutral-700 border-neutral-200 hover:border-neutral-300'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                  {!isCustomCategoryOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomCategoryOpen(true)}
+                      className="px-2.5 py-1.5 rounded-lg border border-dashed border-neutral-300 hover:border-neutral-400 text-xs text-neutral-500 hover:text-neutral-900 transition-colors cursor-pointer"
+                      title="Add or type custom category"
+                    >
+                      + Other
+                    </button>
+                  ) : null}
+                </div>
+                {isCustomCategoryOpen && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <input
+                      type="text"
+                      value={customCategoryInput}
+                      onChange={(e) => setCustomCategoryInput(e.target.value)}
+                      placeholder="Category name (e.g. Swimwear)..."
+                      className="text-xs px-2.5 py-1.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-neutral-900 flex-1"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveCustomCategory();
+                        if (e.key === 'Escape') setIsCustomCategoryOpen(false);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={!customCategoryInput.trim() || isUpdatingCategory}
+                      onClick={handleSaveCustomCategory}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg cursor-pointer disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCategoryOpen(false);
+                        setCustomCategoryInput('');
+                      }}
+                      className="px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 )}
               </div>

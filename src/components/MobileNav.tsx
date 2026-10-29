@@ -44,7 +44,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           <span className="text-[9.5px] tracking-tight mt-0.5">Closet</span>
         </button>
 
-        {/* Tab 2: Campaigns */}
+        {/* Tab 2: Boards */}
         <button
           onClick={() => onSelectTab('campaigns')}
           className={`relative flex flex-col items-center justify-center h-full min-h-[44px] cursor-pointer transition-colors ${
@@ -54,7 +54,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           }`}
         >
           <Calendar className="w-5 h-5 stroke-[2]" />
-          <span className="text-[9.5px] tracking-tight mt-0.5">Campaigns</span>
+          <span className="text-[9.5px] tracking-tight mt-0.5">Boards</span>
         </button>
 
         {/* Tab 3: Outfits & Fit Pics */}

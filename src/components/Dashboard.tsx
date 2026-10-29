@@ -275,7 +275,7 @@ export const Dashboard: React.FC = () => {
                 : currentTab === 'outfits'
                 ? 'Outfits'
                 : currentTab === 'campaigns'
-                ? 'Campaigns Board'
+                ? 'Boards'
                 : 'Analytics & Reports'}
             </h1>
             <p className="text-sm text-neutral-500 mt-1">
@@ -442,6 +442,7 @@ export const Dashboard: React.FC = () => {
         onUpdateStatus={handleUpdateStatus}
         onUpdateItem={handleUpdateItem}
         onDelete={handleDeleteItem}
+        allCategories={allCategories}
         relatedOutfits={selectedItem ? outfits.filter(o => o.item_ids.includes(selectedItem.id)) : []}
         onNavigateToOutfit={(outfitId) => {
           setSelectedItem(null);

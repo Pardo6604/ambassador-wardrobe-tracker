@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>Campaigns</span>
+            <span>Boards</span>
           </button>
 
           <button
