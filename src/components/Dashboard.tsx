@@ -104,10 +104,11 @@ export const Dashboard: React.FC = () => {
       counts[s] = 0;
     });
     items.forEach(i => {
-      if (counts[i.status] !== undefined) {
-        counts[i.status]++;
+      const s = i.status || 'Unworn';
+      if (counts[s] !== undefined) {
+        counts[s]++;
       } else {
-        counts[i.status] = 1;
+        counts[s] = 1;
       }
     });
     return {
@@ -122,7 +123,8 @@ export const Dashboard: React.FC = () => {
       if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
         return false;
       }
-      if (selectedStatus !== 'All' && item.status.toLowerCase() !== selectedStatus.toLowerCase()) {
+      const itemStatus = item.status || 'Unworn';
+      if (selectedStatus !== 'All' && itemStatus.toLowerCase() !== selectedStatus.toLowerCase()) {
         return false;
       }
       if (searchQuery.trim()) {
@@ -140,7 +142,8 @@ export const Dashboard: React.FC = () => {
   const handleUploadItem = async (data: {
     brand: string;
     category: Category;
-    status: ItemStatus;
+    status?: ItemStatus;
+    description?: string;
     image_url: string;
     campaign_tag?: string;
     notes?: string;

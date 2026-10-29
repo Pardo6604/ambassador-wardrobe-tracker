@@ -646,17 +646,16 @@ def auto_suggest_outfit(
     """
     items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
     if not items:
-        # Check if there are wardrobe items in the database that should belong to current user
-        all_items = db.query(ClothingItem).all()
-        if all_items:
-            for itm in all_items:
+        # Check if there are unassigned/orphaned wardrobe items (user_id IS NULL)
+        orphaned_items = db.query(ClothingItem).filter(ClothingItem.user_id.is_(None)).all()
+        if orphaned_items:
+            for itm in orphaned_items:
                 itm.user_id = current_user.id
             try:
                 db.commit()
                 items = db.query(ClothingItem).filter(ClothingItem.user_id == current_user.id).all()
             except Exception:
                 db.rollback()
-                items = all_items
 
     if not items:
         raise HTTPException(status_code=400, detail="No clothes found in your closet. Please upload some pieces first.")

@@ -221,10 +221,13 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       const config: ReportConfig = JSON.parse(report.config_json);
       setActiveReportId(report.id);
       setReportTitle(report.title);
-      setReportType(config.report_type || report.report_type);
       if (config.row_group) setRowGroup(config.row_group);
       if (config.col_group) setColGroup(config.col_group);
-      if (config.chart_type) setChartType(config.chart_type);
+      if (config.chart_type === 'bar' || config.chart_type === 'donut' || config.chart_type === 'none') {
+        setChartType(config.chart_type);
+      } else if (config.chart_type) {
+        setChartType('bar');
+      }
       if (config.filters) {
         if (config.filters.category) setSelectedCategory(config.filters.category);
         if (config.filters.status) setSelectedStatus(config.filters.status);

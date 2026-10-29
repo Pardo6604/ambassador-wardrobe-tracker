@@ -37,6 +37,11 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [descriptionText, setDescriptionText] = useState('');
   const [isSavingDescription, setIsSavingDescription] = useState(false);
 
+  // Editable brand state
+  const [isEditingBrand, setIsEditingBrand] = useState(false);
+  const [brandText, setBrandText] = useState('');
+  const [isSavingBrand, setIsSavingBrand] = useState(false);
+
   // Replace photo state
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +50,8 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     if (item) {
       setDescriptionText(item.description || '');
       setIsEditingDescription(false);
+      setBrandText(item.brand || '');
+      setIsEditingBrand(false);
     }
   }, [item]);
 
@@ -72,6 +79,17 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
       setIsEditingDescription(false);
     } finally {
       setIsSavingDescription(false);
+    }
+  };
+
+  const handleSaveBrand = async () => {
+    if (!onUpdateItem || !brandText.trim()) return;
+    setIsSavingBrand(true);
+    try {
+      await onUpdateItem(item.id, { brand: brandText.trim() });
+      setIsEditingBrand(false);
+    } finally {
+      setIsSavingBrand(false);
     }
   };
 
@@ -196,9 +214,61 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           <div className="space-y-4 flex flex-col justify-between">
             <div className="space-y-4">
               <div>
-                <h3 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight font-['Syne',sans-serif]">
-                  {item.brand}
-                </h3>
+                {!isEditingBrand ? (
+                  <div className="flex items-center gap-2 group">
+                    <h3 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight font-['Syne',sans-serif]">
+                      {item.brand}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBrandText(item.brand);
+                        setIsEditingBrand(true);
+                      }}
+                      className="opacity-60 sm:opacity-0 group-hover:opacity-100 hover:!opacity-100 transition-opacity p-1 text-neutral-400 hover:text-neutral-900 rounded-md hover:bg-neutral-100 cursor-pointer"
+                      title="Edit brand name"
+                      aria-label="Edit brand name"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={brandText}
+                      onChange={(e) => setBrandText(e.target.value)}
+                      placeholder="Brand name..."
+                      className="text-lg font-bold font-['Syne',sans-serif] px-2.5 py-1 bg-white border border-neutral-300 rounded-lg text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 w-full max-w-xs"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveBrand();
+                        if (e.key === 'Escape') {
+                          setBrandText(item.brand);
+                          setIsEditingBrand(false);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={isSavingBrand || !brandText.trim()}
+                      onClick={handleSaveBrand}
+                      className="text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded px-2.5 py-1.5 cursor-pointer disabled:opacity-50 shrink-0 shadow-2xs"
+                    >
+                      {isSavingBrand ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBrandText(item.brand);
+                        setIsEditingBrand(false);
+                      }}
+                      className="text-xs text-neutral-400 hover:text-neutral-700 cursor-pointer px-1.5 py-1 shrink-0"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 {item.campaign_tag && (
                   <div className="flex items-center gap-1.5 mt-1 text-xs text-neutral-600 font-medium">
                     <Tag className="w-3.5 h-3.5 text-neutral-400" />

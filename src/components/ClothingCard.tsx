@@ -47,7 +47,8 @@ export const ClothingCard: React.FC<ClothingCardProps> = ({
     },
   };
 
-  const currentStatus = statusConfig[item.status] || statusConfig['Unworn'];
+  const statusKey = item.status || 'Unworn';
+  const currentStatus = statusConfig[statusKey] || statusConfig['Unworn'];
   const StatusIcon = currentStatus.icon;
 
   // Cycle through next logical ambassador status
@@ -59,7 +60,7 @@ export const ClothingCard: React.FC<ClothingCardProps> = ({
       'Posted': 'Unworn',
       'Needs Returning': 'Posted',
     };
-    onUpdateStatus(item.id, cycleMap[item.status]);
+    onUpdateStatus(item.id, cycleMap[statusKey] || 'Worn');
   };
 
   return (

@@ -181,7 +181,7 @@ export const apiService = {
     }
 
     if (params.status && params.status !== 'All') {
-      items = items.filter(i => i.status.toLowerCase() === params.status!.toLowerCase());
+      items = items.filter(i => (i.status || 'Unworn').toLowerCase() === params.status!.toLowerCase());
     }
 
     if (params.brand && params.brand.trim()) {
