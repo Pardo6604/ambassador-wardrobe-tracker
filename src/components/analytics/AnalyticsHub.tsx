@@ -54,6 +54,7 @@ export const AnalyticsHub: React.FC<AnalyticsHubProps> = ({
     const created = await apiService.createReport(reportData);
     if (created) {
       setSavedReports(prev => [created, ...prev.filter(r => r.id !== created.id)]);
+      return created;
     }
   };
 
@@ -67,6 +68,7 @@ export const AnalyticsHub: React.FC<AnalyticsHubProps> = ({
     const created = await apiService.createDashboard(dashData);
     if (created) {
       setSavedDashboards(prev => [created, ...prev.filter(d => d.id !== created.id)]);
+      return created;
     }
   };
 

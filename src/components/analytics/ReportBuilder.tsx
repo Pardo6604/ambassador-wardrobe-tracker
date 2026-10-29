@@ -3,7 +3,7 @@ import { ClothingItem, CustomReport, ReportType, ReportConfig } from '../../type
 import { DonutChartWidget, BarChartWidget, MatrixTableWidget } from './charts/ChartWidgets';
 import { 
   Download, Printer, Plus, Filter, Save, Layers, Table, Grid, 
-  BarChart2, PieChart, ChevronDown, ChevronRight, Search, Check, Sparkles, X 
+  BarChart2, PieChart, ChevronDown, ChevronRight, Search, Check, Sparkles, X, Trash2 
 } from 'lucide-react';
 
 interface ReportBuilderProps {
@@ -12,7 +12,7 @@ interface ReportBuilderProps {
   allStatuses: string[];
   allBrands: string[];
   savedReports: CustomReport[];
-  onSaveReport: (report: { title: string; description?: string; report_type: string; dataset: string; config_json: string }) => Promise<void>;
+  onSaveReport: (report: { title: string; description?: string; report_type: string; dataset: string; config_json: string }) => Promise<CustomReport | void>;
   onDeleteReport: (id: string) => Promise<void>;
 }
 
@@ -52,6 +52,25 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   const [saveTitle, setSaveTitle] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Delete Report State
+  const [confirmDeleteReport, setConfirmDeleteReport] = useState(false);
+  const [isDeletingReport, setIsDeletingReport] = useState(false);
+
+  const handleDeleteActiveReport = async () => {
+    if (!activeReportId) return;
+    setIsDeletingReport(true);
+    try {
+      await onDeleteReport(activeReportId);
+      setActiveReportId(null);
+      setReportTitle('Wardrobe Inventory by Brand');
+      setConfirmDeleteReport(false);
+    } catch (err) {
+      console.error('Failed to delete report', err);
+    } finally {
+      setIsDeletingReport(false);
+    }
+  };
 
   // Filter items based on active controls
   const filteredItems = useMemo(() => {
@@ -199,7 +218,7 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
         columns: Object.keys(visibleCols).filter(k => visibleCols[k]),
       };
 
-      await onSaveReport({
+      const created = await onSaveReport({
         title: saveTitle.trim(),
         description: saveDescription.trim() || undefined,
         report_type: reportType,
@@ -207,6 +226,9 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
         config_json: JSON.stringify(config),
       });
 
+      if (created && created.id) {
+        setActiveReportId(created.id);
+      }
       setReportTitle(saveTitle.trim());
       setIsSavingModalOpen(false);
       setSaveTitle('');
@@ -262,8 +284,14 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
             <select
               value={activeReportId || ''}
               onChange={(e) => {
-                const found = savedReports.find(r => r.id === e.target.value);
-                if (found) loadSavedReport(found);
+                setConfirmDeleteReport(false);
+                const val = e.target.value;
+                if (!val) {
+                  setActiveReportId(null);
+                } else {
+                  const found = savedReports.find(r => r.id === val);
+                  if (found) loadSavedReport(found);
+                }
               }}
               className="text-xs font-semibold bg-neutral-50 border border-neutral-200 text-neutral-700 px-3 py-2 rounded-lg focus:outline-none cursor-pointer"
             >
@@ -272,6 +300,42 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
                 <option key={r.id} value={r.id}>{r.title} ({r.report_type})</option>
               ))}
             </select>
+          )}
+
+          {/* Delete Saved Report Button */}
+          {activeReportId && (
+            confirmDeleteReport ? (
+              <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={handleDeleteActiveReport}
+                  disabled={isDeletingReport}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors cursor-pointer"
+                  title="Confirm deletion"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingReport ? 'Deleting...' : 'Confirm'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteReport(false)}
+                  disabled={isDeletingReport}
+                  className="px-2 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-800 rounded-md cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteReport(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/60 rounded-lg transition-colors cursor-pointer"
+                title="Delete this saved report"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <span>Delete</span>
+              </button>
+            )
           )}
 
           <button

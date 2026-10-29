@@ -3,7 +3,7 @@ import { ClothingItem, OutfitSuggestion, CustomDashboard, DashboardWidget } from
 import { KpiWidget, DonutChartWidget, BarChartWidget, FunnelWidget, MatrixTableWidget } from './charts/ChartWidgets';
 import { 
   Share2, Printer, Download, Filter, Plus, Check, Copy, 
-  Sparkles, Layers, SlidersHorizontal, ExternalLink, X, Shield 
+  Sparkles, Layers, SlidersHorizontal, ExternalLink, X, Shield, Trash2 
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -13,7 +13,7 @@ interface DashboardViewProps {
   allStatuses: string[];
   allBrands: string[];
   savedDashboards: CustomDashboard[];
-  onSaveDashboard: (dash: { title: string; description?: string; is_default?: boolean; layout_json: string }) => Promise<void>;
+  onSaveDashboard: (dash: { title: string; description?: string; is_default?: boolean; layout_json: string }) => Promise<CustomDashboard | void>;
   onDeleteDashboard: (id: string) => Promise<void>;
   onToggleShare: (id: string, is_public?: boolean) => Promise<{ is_public: boolean; share_token: string } | null>;
   onOpenAI: () => void;
@@ -47,6 +47,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [shareToken, setShareToken] = useState<string>('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [isSharingLoading, setIsSharingLoading] = useState(false);
+
+  // Delete Dashboard State
+  const [confirmDeleteDash, setConfirmDeleteDash] = useState(false);
+  const [isDeletingDash, setIsDeletingDash] = useState(false);
+
+  const isCustomDashboard = useMemo(() => {
+    return savedDashboards.some(d => d.id === activeTemplate);
+  }, [savedDashboards, activeTemplate]);
+
+  const handleDeleteCurrentDashboard = async () => {
+    if (!isCustomDashboard) return;
+    setIsDeletingDash(true);
+    try {
+      await onDeleteDashboard(activeTemplate);
+      setActiveTemplate('category_breakdown');
+      setConfirmDeleteDash(false);
+    } catch (err) {
+      console.error('Failed to delete dashboard', err);
+    } finally {
+      setIsDeletingDash(false);
+    }
+  };
 
   // Filtered dataset according to global dashboard filters
   const filteredItems = useMemo(() => {
@@ -239,7 +261,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Template Selector Dropdown */}
           <select
             value={activeTemplate}
-            onChange={(e) => setActiveTemplate(e.target.value)}
+            onChange={(e) => {
+              setActiveTemplate(e.target.value);
+              setConfirmDeleteDash(false);
+            }}
             className="text-xs font-semibold bg-neutral-50 border border-neutral-200 text-neutral-800 px-3 py-2 rounded-lg focus:outline-none cursor-pointer"
           >
             <optgroup label="Standard Templates">
@@ -255,6 +280,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </optgroup>
             )}
           </select>
+
+          {/* Delete Custom Dashboard Button */}
+          {isCustomDashboard && (
+            confirmDeleteDash ? (
+              <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={handleDeleteCurrentDashboard}
+                  disabled={isDeletingDash}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors cursor-pointer"
+                  title="Confirm deletion"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isDeletingDash ? 'Deleting...' : 'Confirm'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteDash(false)}
+                  disabled={isDeletingDash}
+                  className="px-2 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-800 rounded-md cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteDash(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/60 rounded-lg transition-colors cursor-pointer"
+                title="Delete this custom dashboard"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <span>Delete</span>
+              </button>
+            )
+          )}
 
           {/* Ask AI Button */}
           <button
