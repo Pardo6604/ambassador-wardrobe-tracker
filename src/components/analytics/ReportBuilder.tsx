@@ -3,7 +3,7 @@ import { ClothingItem, CustomReport, ReportType, ReportConfig } from '../../type
 import { DonutChartWidget, BarChartWidget, MatrixTableWidget } from './charts/ChartWidgets';
 import { 
   Download, Printer, Plus, Filter, Save, Layers, Table, Grid, 
-  BarChart2, PieChart, ChevronDown, ChevronRight, Search, Check, Sparkles, X, Trash2 
+  BarChart2, PieChart, ChevronDown, ChevronRight, Search, Check, Sparkles, X, Trash2, Folder 
 } from 'lucide-react';
 
 interface ReportBuilderProps {
@@ -56,6 +56,9 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
   // Delete Report State
   const [confirmDeleteReport, setConfirmDeleteReport] = useState(false);
   const [isDeletingReport, setIsDeletingReport] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
+  const [isDeletingSpecificReport, setIsDeletingSpecificReport] = useState(false);
 
   const handleDeleteActiveReport = async () => {
     if (!activeReportId) return;
@@ -279,6 +282,22 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Saved Reports Manager Button */}
+          <button
+            type="button"
+            onClick={() => setIsManageModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
+            title="View and delete saved reports"
+          >
+            <Folder className="w-3.5 h-3.5" />
+            <span>Saved Reports</span>
+            {savedReports.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 bg-neutral-200 text-neutral-800 rounded-full font-bold tabular-nums">
+                {savedReports.length}
+              </span>
+            )}
+          </button>
+
           {/* Saved Reports Menu */}
           {savedReports.length > 0 && (
             <select
@@ -803,6 +822,142 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Saved Reports Modal */}
+      {isManageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-lg border border-neutral-200 shadow-2xl p-6 space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <div className="flex items-center gap-2">
+                <Folder className="w-5 h-5 text-neutral-900" />
+                <h3 className="font-bold text-neutral-900 text-base font-['Syne',sans-serif]">
+                  Saved Reports Library
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  setDeletingReportId(null);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-500">
+              Load or permanently delete any custom report from your wardrobe intelligence library.
+            </p>
+
+            <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+              {savedReports.length === 0 ? (
+                <div className="p-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
+                  <p className="text-xs font-semibold text-neutral-600 mb-1">No saved reports in library yet</p>
+                  <p className="text-[11px] text-neutral-400">
+                    Configure your report format and click "Save Report" above or use "✨ Ask AI" to generate reports.
+                  </p>
+                </div>
+              ) : (
+                savedReports.map((rep) => (
+                  <div
+                    key={rep.id}
+                    className="p-3 bg-neutral-50/80 hover:bg-neutral-50 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-3 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-neutral-900 truncate">
+                          {rep.title}
+                        </span>
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-700 shrink-0">
+                          {rep.report_type}
+                        </span>
+                        {rep.id === activeReportId && (
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-0.5">
+                        Saved {new Date(rep.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          loadSavedReport(rep);
+                          setIsManageModalOpen(false);
+                          setDeletingReportId(null);
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold text-neutral-800 bg-white hover:bg-neutral-100 border border-neutral-200 rounded-md transition-colors cursor-pointer"
+                      >
+                        Load
+                      </button>
+
+                      {deletingReportId === rep.id ? (
+                        <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-md p-0.5">
+                          <button
+                            type="button"
+                            disabled={isDeletingSpecificReport}
+                            onClick={async () => {
+                              setIsDeletingSpecificReport(true);
+                              try {
+                                await onDeleteReport(rep.id);
+                                if (activeReportId === rep.id) {
+                                  setActiveReportId(null);
+                                  setReportTitle('Wardrobe Inventory by Brand');
+                                }
+                                setDeletingReportId(null);
+                              } finally {
+                                setIsDeletingSpecificReport(false);
+                              }
+                            }}
+                            className="px-2 py-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors cursor-pointer"
+                          >
+                            {isDeletingSpecificReport ? 'Deleting...' : 'Confirm'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingReportId(null)}
+                            disabled={isDeletingSpecificReport}
+                            className="px-1.5 py-1 text-[11px] font-medium text-neutral-600 hover:text-neutral-800 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingReportId(rep.id)}
+                          className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                          title="Delete this report"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  setDeletingReportId(null);
+                }}
+                className="px-4 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

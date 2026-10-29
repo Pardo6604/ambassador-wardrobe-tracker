@@ -3,7 +3,7 @@ import { ClothingItem, OutfitSuggestion, CustomDashboard, DashboardWidget } from
 import { KpiWidget, DonutChartWidget, BarChartWidget, FunnelWidget, MatrixTableWidget } from './charts/ChartWidgets';
 import { 
   Share2, Printer, Download, Filter, Plus, Check, Copy, 
-  Sparkles, Layers, SlidersHorizontal, ExternalLink, X, Shield, Trash2 
+  Sparkles, Layers, SlidersHorizontal, ExternalLink, X, Shield, Trash2, FolderKanban 
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -51,6 +51,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Delete Dashboard State
   const [confirmDeleteDash, setConfirmDeleteDash] = useState(false);
   const [isDeletingDash, setIsDeletingDash] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeletingSpecific, setIsDeletingSpecific] = useState(false);
 
   const isCustomDashboard = useMemo(() => {
     return savedDashboards.some(d => d.id === activeTemplate);
@@ -280,6 +283,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </optgroup>
             )}
           </select>
+
+          {/* Manage Saved Dashboards Button */}
+          <button
+            type="button"
+            onClick={() => setIsManageModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
+            title="View and delete saved custom dashboards"
+          >
+            <FolderKanban className="w-3.5 h-3.5" />
+            <span>Saved Dashboards</span>
+            {savedDashboards.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 bg-neutral-200 text-neutral-800 rounded-full font-bold tabular-nums">
+                {savedDashboards.length}
+              </span>
+            )}
+          </button>
 
           {/* Delete Custom Dashboard Button */}
           {isCustomDashboard && (
@@ -612,6 +631,138 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="px-4 py-2 text-xs font-semibold text-neutral-700 hover:text-neutral-900"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Custom Dashboards Modal */}
+      {isManageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-lg border border-neutral-200 shadow-2xl p-6 space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
+              <div className="flex items-center gap-2">
+                <FolderKanban className="w-5 h-5 text-neutral-900" />
+                <h3 className="font-bold text-neutral-900 text-base font-['Syne',sans-serif]">
+                  Custom Dashboards
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  setDeletingId(null);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-neutral-100 flex items-center justify-center text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-neutral-500">
+              Open or permanently delete your custom dashboards. Pre-built standard templates (Category Breakdown, Pipeline, Brand Volume) are built-in defaults and cannot be deleted.
+            </p>
+
+            <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+              {savedDashboards.length === 0 ? (
+                <div className="p-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-200">
+                  <p className="text-xs font-semibold text-neutral-600 mb-1">No custom dashboards saved yet</p>
+                  <p className="text-[11px] text-neutral-400">
+                    Click "✨ Ask AI" on the top toolbar to automatically create and save executive dashboards.
+                  </p>
+                </div>
+              ) : (
+                savedDashboards.map((dash) => (
+                  <div
+                    key={dash.id}
+                    className="p-3 bg-neutral-50/80 hover:bg-neutral-50 border border-neutral-200/80 rounded-xl flex items-center justify-between gap-3 transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-neutral-900 truncate">
+                          {dash.title}
+                        </span>
+                        {dash.id === activeTemplate && (
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-0.5">
+                        Created {new Date(dash.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTemplate(dash.id);
+                          setIsManageModalOpen(false);
+                          setDeletingId(null);
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold text-neutral-800 bg-white hover:bg-neutral-100 border border-neutral-200 rounded-md transition-colors cursor-pointer"
+                      >
+                        Open
+                      </button>
+
+                      {deletingId === dash.id ? (
+                        <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-md p-0.5">
+                          <button
+                            type="button"
+                            disabled={isDeletingSpecific}
+                            onClick={async () => {
+                              setIsDeletingSpecific(true);
+                              try {
+                                await onDeleteDashboard(dash.id);
+                                if (activeTemplate === dash.id) {
+                                  setActiveTemplate('category_breakdown');
+                                }
+                                setDeletingId(null);
+                              } finally {
+                                setIsDeletingSpecific(false);
+                              }
+                            }}
+                            className="px-2 py-1 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded transition-colors cursor-pointer"
+                          >
+                            {isDeletingSpecific ? 'Deleting...' : 'Confirm'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingId(null)}
+                            disabled={isDeletingSpecific}
+                            className="px-1.5 py-1 text-[11px] font-medium text-neutral-600 hover:text-neutral-800 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(dash.id)}
+                          className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                          title="Delete this dashboard"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManageModalOpen(false);
+                  setDeletingId(null);
+                }}
+                className="px-4 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>
