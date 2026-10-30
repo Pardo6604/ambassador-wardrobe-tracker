@@ -3,7 +3,7 @@ import { ClothingItem, OutfitSuggestion, CustomDashboard, DashboardWidget } from
 import { KpiWidget, DonutChartWidget, BarChartWidget, FunnelWidget, MatrixTableWidget } from './charts/ChartWidgets';
 import { 
   Share2, Printer, Download, Filter, Plus, Check, Copy, 
-  Sparkles, Layers, SlidersHorizontal, ExternalLink, X, Shield, Trash2, FolderKanban 
+  Layers, SlidersHorizontal, ExternalLink, X, Shield, Trash2, FolderKanban, ChevronDown 
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -16,7 +16,7 @@ interface DashboardViewProps {
   onSaveDashboard: (dash: { title: string; description?: string; is_default?: boolean; layout_json: string }) => Promise<CustomDashboard | void>;
   onDeleteDashboard: (id: string) => Promise<void>;
   onToggleShare: (id: string, is_public?: boolean) => Promise<{ is_public: boolean; share_token: string } | null>;
-  onOpenAI: () => void;
+  onOpenAI?: () => void;
 }
 
 export type DashboardTemplateId = 'category_breakdown' | 'pipeline' | 'brand_finance';
@@ -247,51 +247,46 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* 1. Dashboard Header & Template Switcher */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-neutral-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-neutral-900 font-['Syne',sans-serif]">
-              {currentTitle}
-            </h2>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-              Live Analytics
-            </span>
-          </div>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Real-time KPIs, status velocity, and inventory allocation across your wardrobe
-          </p>
+          <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 font-['Syne',sans-serif] tracking-tight">
+            {currentTitle}
+          </h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           {/* Template Selector Dropdown */}
-          <select
-            value={activeTemplate}
-            onChange={(e) => {
-              setActiveTemplate(e.target.value);
-              setConfirmDeleteDash(false);
-            }}
-            className="text-xs font-semibold bg-neutral-50 border border-neutral-200 text-neutral-800 px-3 py-2 rounded-lg focus:outline-none cursor-pointer"
-          >
-            <optgroup label="Standard Templates">
-              <option value="category_breakdown">🌟 Wardrobe Category Breakdown</option>
-              <option value="pipeline">🚀 Deliverables & Campaign Pipeline</option>
-              <option value="brand_finance">💼 Brand Gifting & Volume</option>
-            </optgroup>
-            {savedDashboards.length > 0 && (
-              <optgroup label="Custom Dashboards">
-                {savedDashboards.map(d => (
-                  <option key={d.id} value={d.id}>📊 {d.title}</option>
-                ))}
+          <div className="relative">
+            <select
+              value={activeTemplate}
+              onChange={(e) => {
+                setActiveTemplate(e.target.value);
+                setConfirmDeleteDash(false);
+              }}
+              className="text-xs font-semibold bg-neutral-50 hover:bg-neutral-100/80 border border-neutral-200 text-neutral-800 pl-3.5 pr-8 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-900 transition-colors cursor-pointer appearance-none"
+            >
+              <optgroup label="Standard Templates">
+                <option value="category_breakdown">Wardrobe Category Breakdown</option>
+                <option value="pipeline">Deliverables & Campaign Pipeline</option>
+                <option value="brand_finance">Brand Gifting & Volume</option>
               </optgroup>
-            )}
-          </select>
+              {savedDashboards.length > 0 && (
+                <optgroup label="Custom Dashboards">
+                  {savedDashboards.map(d => (
+                    <option key={d.id} value={d.id}>{d.title}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
 
           {/* Manage Saved Dashboards Button */}
           <button
             type="button"
             onClick={() => setIsManageModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl transition-colors cursor-pointer"
             title="View and delete saved custom dashboards"
           >
-            <FolderKanban className="w-3.5 h-3.5" />
+            <FolderKanban className="w-3.5 h-3.5 text-neutral-500" />
             <span>Saved Dashboards</span>
             {savedDashboards.length > 0 && (
               <span className="text-[10px] px-1.5 py-0.2 bg-neutral-200 text-neutral-800 rounded-full font-bold tabular-nums">
@@ -303,12 +298,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Delete Custom Dashboard Button */}
           {isCustomDashboard && (
             confirmDeleteDash ? (
-              <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg p-0.5">
+              <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-xl p-0.5 animate-in fade-in">
                 <button
                   type="button"
                   onClick={handleDeleteCurrentDashboard}
                   disabled={isDeletingDash}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors cursor-pointer"
                   title="Confirm deletion"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -318,7 +313,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   type="button"
                   onClick={() => setConfirmDeleteDash(false)}
                   disabled={isDeletingDash}
-                  className="px-2 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-800 rounded-md cursor-pointer"
+                  className="px-2 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-800 rounded-lg cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -327,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmDeleteDash(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/60 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200/60 rounded-xl transition-colors cursor-pointer"
                 title="Delete this custom dashboard"
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-600" />
@@ -336,30 +331,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )
           )}
 
-          {/* Ask AI Button */}
-          <button
-            onClick={onOpenAI}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-900 bg-amber-300 hover:bg-amber-400 rounded-lg transition-all cursor-pointer shadow-2xs"
-            title="Ask AI to construct a new report or dashboard"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-            <span>✨ Ask AI</span>
-          </button>
+          {/* Subtle Divider */}
+          <div className="h-5 w-px bg-neutral-200 hidden sm:block mx-0.5" />
 
           {/* Shareable Link Button */}
           <button
             onClick={handleOpenShare}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-xl transition-colors cursor-pointer"
             title="Share a private or public read-only link with talent manager or brand partner"
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 className="w-3.5 h-3.5 text-neutral-500" />
             <span>Share Link</span>
           </button>
 
           {/* Print / PDF Button */}
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl transition-colors cursor-pointer shadow-xs"
             title="Print or export dashboard as PDF"
           >
             <Printer className="w-3.5 h-3.5" />
