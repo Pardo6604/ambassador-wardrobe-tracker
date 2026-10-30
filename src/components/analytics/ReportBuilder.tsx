@@ -268,17 +268,9 @@ export const ReportBuilder: React.FC<ReportBuilderProps> = ({
       {/* 1. Header Toolbar: Title, Saved Reports Selector & Export Actions */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-neutral-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-neutral-900 font-['Syne',sans-serif]">
-              {reportTitle}
-            </h2>
-            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-200">
-              {reportType} format
-            </span>
-          </div>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Displaying {filteredItems.length} of {items.length} total wardrobe items based on active criteria
-          </p>
+          <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 font-['Syne',sans-serif] tracking-tight">
+            {reportTitle}
+          </h2>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
